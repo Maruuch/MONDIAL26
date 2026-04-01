@@ -1,0 +1,36 @@
+name: CI — Type-check + Lint
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  ci:
+    name: Type-check & Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type-check
+        run: npm run type-check
+        env:
+          # Variables fictives pour satisfaire les imports au type-check
+          SHOPIFY_STORE_DOMAIN: placeholder.myshopify.com
+          SHOPIFY_STOREFRONT_ACCESS_TOKEN: placeholder
+          SHOPIFY_ADMIN_API_KEY: placeholder
+          PRINTFUL_API_KEY: placeholder
+          N8N_SECRET: placeholder
+
+      - name: Lint
+        run: npm run lint

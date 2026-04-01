@@ -1,0 +1,187 @@
+{
+  "name": "WF-A — Generate Design (Figma → Cloudinary)",
+  "description": "Reçoit une designTemplateUrl (export Figma), calcule le checksum SHA-256, vérifie l'idempotence sur Cloudinary, upload si nécessaire, puis déclenche WF-B.",
+  "version": "2.0.0",
+  "nodes": [
+    {
+      "id": "trigger",
+      "name": "Webhook Trigger WF-A",
+      "type": "n8n-nodes-base.webhook",
+      "position": [0, 0],
+      "parameters": {
+        "path": "wf-a",
+        "httpMethod": "POST",
+        "responseMode": "onReceived",
+        "authentication": "headerAuth"
+      },
+      "credentials": { "httpHeaderAuth": { "name": "N8N_HMAC_HEADER" } }
+    },
+    {
+      "id": "validate_payload",
+      "name": "Validate Payload",
+      "type": "n8n-nodes-base.code",
+      "position": [200, 0],
+      "parameters": {
+        "jsCode": "const { iso, design, countryName, designTemplateUrl } = $input.first().json.body;\nif (!iso || !design || !countryName || !designTemplateUrl) {\n  throw new Error('Payload incomplet — champs requis: iso, design, countryName, designTemplateUrl');\n}\nif (!/^[A-Z]{3}$/.test(iso)) throw new Error('ISO invalide: ' + iso);\nif (!['D1','D2','D3','D4'].includes(design)) throw new Error('Design invalide: ' + design);\nif (!designTemplateUrl.startsWith('https://')) throw new Error('designTemplateUrl doit être HTTPS');\n\nconst publicId = `football2026/${iso}/${iso}-${design}-2026-master`;\nconst expectedUrl = `https://res.cloudinary.com/${$env.CLOUDINARY_CLOUD_NAME}/image/upload/${publicId}.png`;\n\nreturn [{ json: { iso, design, countryName, designTemplateUrl, publicId, expectedCloudinaryUrl: expectedUrl, triggeredAt: new Date().toISOString() } }];"
+      }
+    },
+    {
+      "id": "download_figma_export",
+      "name": "Download Figma Export",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [400, 0],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.designTemplateUrl }}",
+        "responseFormat": "arraybuffer",
+        "options": {}
+      }
+    },
+    {
+      "id": "compute_checksum",
+      "name": "Compute SHA-256 Checksum",
+      "type": "n8n-nodes-base.code",
+      "position": [600, 0],
+      "parameters": {
+        "jsCode": "const crypto = require('crypto');\nconst fileBuffer = Buffer.from($input.first().binary.data.data, 'base64');\nconst checksum = crypto.createHash('sha256').update(fileBuffer).digest('hex');\nreturn [{ json: { ...$('validate_payload').item.json, checksum, fileSize: fileBuffer.length } }];"
+      }
+    },
+    {
+      "id": "check_cloudinary_exists",
+      "name": "Check Cloudinary — Asset Exists?",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [800, 0],
+      "parameters": {
+        "method": "GET",
+        "url": "https://api.cloudinary.com/v1_1/{{ $env.CLOUDINARY_CLOUD_NAME }}/resources/image/upload",
+        "authentication": "basicAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "public_ids[]", "value": "={{ $json.publicId }}" }
+          ]
+        },
+        "options": { "response": { "response": { "fullResponse": true } } }
+      },
+      "credentials": { "httpBasicAuth": { "name": "Cloudinary_BasicAuth" } }
+    },
+    {
+      "id": "idempotence_check",
+      "name": "Idempotence — Same Checksum?",
+      "type": "n8n-nodes-base.code",
+      "position": [1000, 0],
+      "parameters": {
+        "jsCode": "const response = $input.first().json;\nconst resources = response.body?.resources || [];\nconst existing = resources[0];\nconst currentChecksum = $('compute_checksum').item.json.checksum;\nconst existingChecksumTag = existing?.tags?.find(t => t.startsWith('checksum_'));\nconst existingChecksum = existingChecksumTag?.replace('checksum_', '');\n\nconst shouldUpload = !existing || existingChecksum !== currentChecksum;\nconst alreadyExisted = existing && existingChecksum === currentChecksum;\n\nconsole.log({ shouldUpload, alreadyExisted, existingChecksum, currentChecksum });\n\nreturn [{ json: { ...$('compute_checksum').item.json, shouldUpload, alreadyExisted } }];"
+      }
+    },
+    {
+      "id": "upload_to_cloudinary",
+      "name": "Upload to Cloudinary",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [1200, -100],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.cloudinary.com/v1_1/{{ $env.CLOUDINARY_CLOUD_NAME }}/image/upload",
+        "authentication": "genericCredentialType",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            { "name": "file", "value": "={{ $('validate_payload').item.json.designTemplateUrl }}" },
+            { "name": "public_id", "value": "={{ $json.publicId }}" },
+            { "name": "overwrite", "value": "true" },
+            { "name": "format", "value": "png" },
+            { "name": "quality", "value": "100" },
+            { "name": "tags", "value": "football2026,fan-made,={{ $json.iso }},={{ $json.design }},checksum_={{ $json.checksum }}" }
+          ]
+        }
+      }
+    },
+    {
+      "id": "skip_upload",
+      "name": "Skip Upload (idempotent)",
+      "type": "n8n-nodes-base.set",
+      "position": [1200, 100],
+      "parameters": {
+        "values": {
+          "string": [
+            { "name": "secure_url", "value": "={{ $json.expectedCloudinaryUrl }}" },
+            { "name": "status", "value": "skipped_idempotent" }
+          ]
+        }
+      }
+    },
+    {
+      "id": "merge_results",
+      "name": "Merge Upload Results",
+      "type": "n8n-nodes-base.merge",
+      "position": [1400, 0],
+      "parameters": { "mode": "chooseBranch", "chooseBranchMode": "waitForAll" }
+    },
+    {
+      "id": "notify_next_app",
+      "name": "Notify Next.js App (WFA done)",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [1600, 0],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.NEXT_APP_URL }}/api/webhooks/n8n",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "x-n8n-signature", "value": "={{ $hmac(JSON.stringify($json), $env.N8N_SECRET) }}" }
+          ]
+        },
+        "sendBody": true,
+        "bodyContentType": "json",
+        "jsonBody": "={{ JSON.stringify({ event: 'wfa.design_ready', iso: $('validate_payload').item.json.iso, design: $('validate_payload').item.json.design, cloudinaryUrl: $json.secure_url || $('validate_payload').item.json.expectedCloudinaryUrl, checksum: $('compute_checksum').item.json.checksum }) }}"
+      }
+    },
+    {
+      "id": "trigger_wfb",
+      "name": "Trigger WF-B",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [1800, 0],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.N8N_WFB_WEBHOOK_URL }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "x-n8n-signature", "value": "={{ $hmac(JSON.stringify($json), $env.N8N_SECRET) }}" }
+          ]
+        },
+        "sendBody": true,
+        "bodyContentType": "json",
+        "jsonBody": "={{ JSON.stringify({ iso: $('validate_payload').item.json.iso, design: $('validate_payload').item.json.design, countryName: $('validate_payload').item.json.countryName, cloudinaryUrl: $('notify_next_app').item.json.cloudinaryUrl, assetChecksum: $('compute_checksum').item.json.checksum }) }}"
+      }
+    },
+    {
+      "id": "error_handler",
+      "name": "Error Handler",
+      "type": "n8n-nodes-base.code",
+      "position": [1000, 300],
+      "parameters": {
+        "jsCode": "const err = $input.first().json;\nconsole.error('[WF-A Error]', JSON.stringify(err, null, 2));\n// TODO: Envoyer alerte email ou Slack\nreturn $input.all();"
+      }
+    }
+  ],
+  "connections": {
+    "trigger": { "main": [[ { "node": "validate_payload" } ]] },
+    "validate_payload": { "main": [[ { "node": "download_figma_export" } ]] },
+    "download_figma_export": { "main": [[ { "node": "compute_checksum" } ]] },
+    "compute_checksum": { "main": [[ { "node": "check_cloudinary_exists" } ]] },
+    "check_cloudinary_exists": { "main": [[ { "node": "idempotence_check" } ]] },
+    "idempotence_check": {
+      "main": [
+        [ { "node": "upload_to_cloudinary" } ],
+        [ { "node": "skip_upload" } ]
+      ]
+    },
+    "upload_to_cloudinary": { "main": [[ { "node": "merge_results" } ]] },
+    "skip_upload": { "main": [[ { "node": "merge_results" } ]] },
+    "merge_results": { "main": [[ { "node": "notify_next_app" } ]] },
+    "notify_next_app": { "main": [[ { "node": "trigger_wfb" } ]] }
+  },
+  "settings": { "executionOrder": "v1", "errorWorkflow": "error_handler" }
+}

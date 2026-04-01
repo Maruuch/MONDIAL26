@@ -1,0 +1,51 @@
+{
+  "framework": "nextjs",
+  "buildCommand": "npm run build",
+  "outputDirectory": ".next",
+  "installCommand": "npm ci",
+  "regions": ["cdg1"],
+  "env": {
+    "SHOPIFY_STORE_DOMAIN": "@shopify-store-domain",
+    "SHOPIFY_STOREFRONT_ACCESS_TOKEN": "@shopify-storefront-access-token",
+    "SHOPIFY_ADMIN_API_KEY": "@shopify-admin-api-key",
+    "PRINTFUL_API_KEY": "@printful-api-key",
+    "PRINTFUL_STORE_ID": "@printful-store-id",
+    "N8N_SECRET": "@n8n-secret",
+    "N8N_BASE_URL": "@n8n-base-url",
+    "N8N_WFA_WEBHOOK_URL": "@n8n-wfa-webhook-url",
+    "N8N_WFB_WEBHOOK_URL": "@n8n-wfb-webhook-url",
+    "CLOUDINARY_CLOUD_NAME": "@cloudinary-cloud-name",
+    "CLOUDINARY_API_KEY": "@cloudinary-api-key",
+    "CLOUDINARY_API_SECRET": "@cloudinary-api-secret",
+    "APPROVAL_EMAIL": "@approval-email"
+  },
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "X-Frame-Options", "value": "DENY" },
+        { "key": "X-XSS-Protection", "value": "1; mode=block" },
+        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(), microphone=(), geolocation=()"
+        }
+      ]
+    },
+    {
+      "source": "/api/:path*",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-store" }
+      ]
+    }
+  ],
+  "rewrites": [],
+  "redirects": [
+    {
+      "source": "/teams/:country/products",
+      "destination": "/teams/:country",
+      "permanent": true
+    }
+  ]
+}

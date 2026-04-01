@@ -1,0 +1,137 @@
+{
+  "name": "WF-B — Draft → Approval → Publish",
+  "description": "Reçoit le design de WF-A, crée le produit Printful en draft, envoie email d'approbation, puis publie sur Shopify après validation.",
+  "version": "1.0.0",
+  "nodes": [
+    {
+      "id": "trigger",
+      "name": "Webhook Trigger WF-B",
+      "type": "n8n-nodes-base.webhook",
+      "position": [0, 0],
+      "parameters": {
+        "path": "wf-b",
+        "httpMethod": "POST",
+        "responseMode": "onReceived",
+        "authentication": "headerAuth"
+      }
+    },
+    {
+      "id": "validate",
+      "name": "Validate Payload WF-B",
+      "type": "n8n-nodes-base.code",
+      "position": [200, 0],
+      "parameters": {
+        "jsCode": "const { iso, design, countryName, cloudinaryUrl } = $input.first().json.body;\nif (!iso || !design || !cloudinaryUrl) throw new Error('Payload WF-B incomplet');\nconst designLabels = { D1: 'Slogan', D2: 'Emblème', D3: 'Fantaisie', D4: 'Basic' };\nconst productTitle = `${countryName} ${designLabels[design]} Fan-Made — Football 2026`;\nreturn [{ json: { iso, design, countryName, cloudinaryUrl, productTitle } }];"
+      }
+    },
+    {
+      "id": "create_printful_product",
+      "name": "Create Printful Product (Draft)",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [400, 0],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.printful.com/store/products",
+        "authentication": "genericCredentialType",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "Bearer {{ $env.PRINTFUL_API_KEY }}" },
+            { "name": "X-PF-Store-Id", "value": "={{ $env.PRINTFUL_STORE_ID }}" }
+          ]
+        },
+        "sendBody": true,
+        "bodyContentType": "json",
+        "jsonBody": "={{ JSON.stringify({ sync_product: { external_id: 'football2026-' + $json.iso.toLowerCase() + '-' + $json.design.toLowerCase(), name: $json.productTitle, thumbnail: $json.cloudinaryUrl }, variants: [] }) }}"
+      }
+    },
+    {
+      "id": "send_approval_email",
+      "name": "Send Approval Email",
+      "type": "n8n-nodes-base.emailSend",
+      "position": [600, 0],
+      "parameters": {
+        "toEmail": "={{ $env.APPROVAL_EMAIL }}",
+        "subject": "[Football 2026] Approbation requise : {{ $('validate').item.json.productTitle }}",
+        "emailType": "html",
+        "html": "<h2>Nouveau produit à approuver</h2><p><strong>Pays :</strong> {{ $('validate').item.json.countryName }}<br><strong>Design :</strong> {{ $('validate').item.json.design }}<br><strong>Titre :</strong> {{ $('validate').item.json.productTitle }}</p><p><img src='{{ $('validate').item.json.cloudinaryUrl }}' style='max-width:400px' /></p><hr><p><a href='{{ $env.NEXT_APP_URL }}/api/approve?token={{ $hmac($json.result.id.toString(), $env.N8N_SECRET) }}&id={{ $json.result.id }}' style='background:#0A2342;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold'>✅ Approuver et publier</a></p><p style='color:#999;font-size:12px'>Produit fan-made non officiel — non affilié à la FIFA.</p>"
+      }
+    },
+    {
+      "id": "wait_approval",
+      "name": "Wait for Approval (Webhook)",
+      "type": "n8n-nodes-base.webhook",
+      "position": [800, 0],
+      "parameters": {
+        "path": "wf-b-approve",
+        "httpMethod": "GET",
+        "responseMode": "onReceived"
+      }
+    },
+    {
+      "id": "verify_approval_token",
+      "name": "Verify Approval Token",
+      "type": "n8n-nodes-base.code",
+      "position": [1000, 0],
+      "parameters": {
+        "jsCode": "const { token, id } = $input.first().json.query;\nconst expected = $hmac(id, $env.N8N_SECRET);\nif (token !== expected) throw new Error('Token invalide');\nreturn [{ json: { printfulProductId: parseInt(id) } }];"
+      }
+    },
+    {
+      "id": "create_shopify_product",
+      "name": "Create Shopify Product",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [1200, 0],
+      "parameters": {
+        "method": "POST",
+        "url": "https://{{ $env.SHOPIFY_STORE_DOMAIN }}/admin/api/2024-10/products.json",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "X-Shopify-Access-Token", "value": "={{ $env.SHOPIFY_ADMIN_API_KEY }}" }
+          ]
+        },
+        "sendBody": true,
+        "bodyContentType": "json",
+        "jsonBody": "={{ JSON.stringify({ product: { title: $('validate').item.json.productTitle, vendor: 'Football 2026', tags: ['football2026', 'fan-made', 'non-official', $('validate').item.json.iso], status: 'active', metafields: [{ namespace: 'football2026', key: 'non_official', value: 'true', type: 'boolean' }, { namespace: 'football2026', key: 'country_iso', value: $('validate').item.json.iso, type: 'single_line_text_field' }, { namespace: 'football2026', key: 'design_code', value: $('validate').item.json.design, type: 'single_line_text_field' }, { namespace: 'football2026', key: 'country_name', value: $('validate').item.json.countryName, type: 'single_line_text_field' }, { namespace: 'football2026', key: 'cloudinary_url', value: $('validate').item.json.cloudinaryUrl, type: 'url' }] } }) }}"
+      }
+    },
+    {
+      "id": "notify_completion",
+      "name": "Notify Completion → Next.js",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [1400, 0],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.NEXT_APP_URL }}/api/webhooks/n8n",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "x-n8n-signature", "value": "={{ $hmac($json.toString(), $env.N8N_SECRET) }}" }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "event", "value": "wfb.product_published" },
+            { "name": "iso", "value": "={{ $('validate').item.json.iso }}" },
+            { "name": "design", "value": "={{ $('validate').item.json.design }}" },
+            { "name": "shopifyProductId", "value": "={{ $json.product.id }}" },
+            { "name": "printfulProductId", "value": "={{ $('verify_approval_token').item.json.printfulProductId }}" }
+          ]
+        }
+      }
+    }
+  ],
+  "connections": {
+    "trigger": { "main": [[ { "node": "validate" } ]] },
+    "validate": { "main": [[ { "node": "create_printful_product" } ]] },
+    "create_printful_product": { "main": [[ { "node": "send_approval_email" } ]] },
+    "wait_approval": { "main": [[ { "node": "verify_approval_token" } ]] },
+    "verify_approval_token": { "main": [[ { "node": "create_shopify_product" } ]] },
+    "create_shopify_product": { "main": [[ { "node": "notify_completion" } ]] }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

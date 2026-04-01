@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12",
+  "description": "Schéma des metafields Shopify pour Football 2026",
+  "namespace": "football2026",
+  "version": "v1",
+  "metafields": [
+    {
+      "key": "non_official",
+      "name": "Produit non officiel",
+      "namespace": "football2026",
+      "type": "boolean",
+      "description": "Toujours true — indique que le produit est fan-made non officiel",
+      "validations": [],
+      "visibleToStorefrontApi": true
+    },
+    {
+      "key": "country_iso",
+      "name": "Code ISO pays",
+      "namespace": "football2026",
+      "type": "single_line_text_field",
+      "description": "ISO 3166-1 alpha-3 (ex: FRA, BRA, ARG)",
+      "validations": [
+        { "name": "min", "value": "3" },
+        { "name": "max", "value": "3" },
+        { "name": "regex", "value": "^[A-Z]{3}$" }
+      ],
+      "visibleToStorefrontApi": true
+    },
+    {
+      "key": "country_name",
+      "name": "Nom du pays",
+      "namespace": "football2026",
+      "type": "single_line_text_field",
+      "description": "Nom complet du pays en français (ex: France, Brésil)",
+      "validations": [],
+      "visibleToStorefrontApi": true
+    },
+    {
+      "key": "design_code",
+      "name": "Code design",
+      "namespace": "football2026",
+      "type": "single_line_text_field",
+      "description": "D1 (Slogan) | D2 (Emblème) | D3 (Fantaisie) | D4 (Basic)",
+      "validations": [
+        { "name": "choices", "value": "[\"D1\",\"D2\",\"D3\",\"D4\"]" }
+      ],
+      "visibleToStorefrontApi": true
+    },
+    {
+      "key": "cloudinary_url",
+      "name": "URL Cloudinary du design",
+      "namespace": "football2026",
+      "type": "url",
+      "description": "URL du fichier design sur Cloudinary (PNG/SVG haute résolution)",
+      "validations": [],
+      "visibleToStorefrontApi": true
+    },
+    {
+      "key": "printful_product_id",
+      "name": "ID produit Printful",
+      "namespace": "football2026",
+      "type": "number_integer",
+      "description": "ID du produit synchronisé sur Printful",
+      "validations": [],
+      "visibleToStorefrontApi": false
+    }
+  ],
+  "productOptions": [
+    {
+      "name": "Gender",
+      "values": ["MEN", "WOMEN", "KIDS"]
+    },
+    {
+      "name": "Size",
+      "values": ["XS", "S", "M", "L", "XL", "XXL", "0-1", "1-2", "2-3", "3-4", "4-5", "5-6", "6-7", "7-8", "8-9", "9-10", "10-11", "11-12", "12-13", "13-14"]
+    }
+  ],
+  "skuPattern": "ISO-D#-GENDER-SIZE-2026",
+  "skuExamples": [
+    "FRA-D1-MEN-L-2026",
+    "BRA-D3-WOMEN-XS-2026",
+    "ARG-D2-KIDS-3-4-2026",
+    "ESP-D4-MEN-XXL-2026"
+  ],
+  "productTags": ["football2026", "fan-made", "non-official"]
+}

@@ -1,0 +1,48 @@
+{
+  "_meta": {
+    "description": "Mapping persistant Printful variant IDs pour Football 2026",
+    "provider": "printful",
+    "product_type": "jersey_2026",
+    "last_synced": null,
+    "notes": "IDs initialisés à 0 — À hydrater via resolvePrintfulVariants() au premier lancement"
+  },
+  "MEN": {
+    "printful_product_id": 0,
+    "variants": {
+      "S": 0,
+      "M": 0,
+      "L": 0,
+      "XL": 0,
+      "XXL": 0
+    }
+  },
+  "WOMEN": {
+    "printful_product_id": 0,
+    "variants": {
+      "XS": 0,
+      "S": 0,
+      "M": 0,
+      "L": 0,
+      "XL": 0
+    }
+  },
+  "KIDS": {
+    "printful_product_id": 0,
+    "variants": {
+      "0-1": 0,
+      "1-2": 0,
+      "2-3": 0,
+      "3-4": 0,
+      "4-5": 0,
+      "5-6": 0,
+      "6-7": 0,
+      "7-8": 0,
+      "8-9": 0,
+      "9-10": 0,
+      "10-11": 0,
+      "11-12": 0,
+      "12-13": 0,
+      "13-14": 0
+    }
+  }
+}
