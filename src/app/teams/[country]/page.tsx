@@ -1,17 +1,13 @@
+export const dynamic = "force-dynamic";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { getCountryBySlug, getAllCountrySlugs } from "@/lib/utils/countries";
+import { getCountryBySlug } from "@/lib/utils/countries";
 import { getProductsByCountry } from "@/lib/shopify/api";
 import { ProductCard } from "@/components/product/ProductCard";
 import { DESIGN_MAP, type DesignCode } from "@/types";
 
 interface PageProps {
   params: Promise<{ country: string }>;
-}
-
-// ─── SSG : génère les chemins au build ───────────────────────────────────────
-export async function generateStaticParams() {
-  return getAllCountrySlugs().map((slug) => ({ country: slug }));
 }
 
 // ─── Metadata SEO ─────────────────────────────────────────────────────────────
