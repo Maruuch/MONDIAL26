@@ -10,7 +10,7 @@
  * Persistance cartId : localStorage côté client (géré dans CartContext)
  */
 
-import { shopifyFetch } from "./client";
+import { storefrontFetch as shopifyFetch } from "./client";
 import {
   CART_CREATE,
   CART_LINES_ADD,

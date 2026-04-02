@@ -1,59 +1,123 @@
-import { GraphQLClient } from "graphql-request";
 import logger from "@/lib/utils/logger";
 
 const SHOPIFY_DOMAIN = process.env.SHOPIFY_STORE_DOMAIN;
-const SHOPIFY_TOKEN = process.env.SHOPIFY_STOREFRONT_ACCESS_TOKEN;
+const STOREFRONT_TOKEN = process.env.SHOPIFY_STOREFRONT_ACCESS_TOKEN;
+const ADMIN_TOKEN = process.env.SHOPIFY_ADMIN_API_KEY;
+const API_VERSION = "2024-10";
 
-// Avertissement au démarrage si token manquant (ne bloque pas le build)
 if (!SHOPIFY_DOMAIN) {
   console.warn("[Shopify] SHOPIFY_STORE_DOMAIN manquant");
 }
-if (!SHOPIFY_TOKEN) {
-  console.warn(
-    "[Shopify] SHOPIFY_STOREFRONT_ACCESS_TOKEN manquant. " +
-    "Générez-le via : shopify app dev (CLI) ou canal Headless dans Shopify Admin."
-  );
+if (!STOREFRONT_TOKEN && !ADMIN_TOKEN) {
+  console.warn("[Shopify] Aucun token API disponible. Le site affichera des pages vides.");
+} else if (!STOREFRONT_TOKEN) {
+  console.info("[Shopify] Mode Admin API — produits via token Admin (Storefront non configuré).");
 }
 
-const STOREFRONT_API_VERSION = "2024-10";
+type ApiMode = "storefront" | "admin" | "none";
 
-function getClient(): GraphQLClient {
-  if (!SHOPIFY_DOMAIN || !SHOPIFY_TOKEN) {
-    throw new Error(
-      "Variables d'environnement manquantes : SHOPIFY_STORE_DOMAIN ou SHOPIFY_STOREFRONT_ACCESS_TOKEN. " +
-      "Consultez .env.example pour les instructions."
-    );
-  }
-  const endpoint = `https://${SHOPIFY_DOMAIN}/api/${STOREFRONT_API_VERSION}/graphql.json`;
-  return new GraphQLClient(endpoint, {
-    headers: {
-      "X-Shopify-Storefront-Access-Token": SHOPIFY_TOKEN,
-      "Content-Type": "application/json",
-    },
-  });
+function getMode(): ApiMode {
+  if (STOREFRONT_TOKEN) return "storefront";
+  if (ADMIN_TOKEN) return "admin";
+  return "none";
 }
-
-// Export du client (lazy — initialisé à l'appel, pas au démarrage)
-export const shopifyClient = new Proxy({} as GraphQLClient, {
-  get(_target, prop) {
-    return getClient()[prop as keyof GraphQLClient];
-  },
-});
 
 /**
- * Wrapper sécurisé avec logging et gestion d'erreurs
+ * Fetch GraphQL Shopify — dual mode :
+ *   - Storefront API si SHOPIFY_STOREFRONT_ACCESS_TOKEN défini (produits + cart)
+ *   - Admin API en fallback si SHOPIFY_ADMIN_API_KEY défini (produits seulement)
  */
 export async function shopifyFetch<T>(
   query: string,
   variables?: Record<string, unknown>
 ): Promise<T> {
+  const mode = getMode();
+
+  if (mode === "none" || !SHOPIFY_DOMAIN) {
+    logger.warn("[Shopify] Aucun token — données vides retournées");
+    return {} as T;
+  }
+
+  const endpoint =
+    mode === "storefront"
+      ? `https://${SHOPIFY_DOMAIN}/api/${API_VERSION}/graphql.json`
+      : `https://${SHOPIFY_DOMAIN}/admin/api/${API_VERSION}/graphql.json`;
+
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (mode === "storefront") {
+    headers["X-Shopify-Storefront-Access-Token"] = STOREFRONT_TOKEN!;
+  } else {
+    headers["X-Shopify-Access-Token"] = ADMIN_TOKEN!;
+  }
+
   try {
-    logger.debug({ variables }, "Shopify GraphQL fetch");
-    const client = getClient();
-    const data = await client.request<T>(query, variables);
-    return data;
+    logger.debug({ mode, variables }, "Shopify GraphQL fetch");
+    const res = await fetch(endpoint, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ query, variables }),
+      cache: "no-store",
+    });
+
+    if (!res.ok) {
+      const text = await res.text();
+      logger.error({ status: res.status, text }, "Shopify HTTP error");
+      throw new Error(`Shopify API: HTTP ${res.status}`);
+    }
+
+    const json = await res.json();
+    if (json.errors?.length) {
+      logger.error({ errors: json.errors, variables }, "Shopify GraphQL errors");
+      throw new Error(json.errors[0].message);
+    }
+    return json.data as T;
   } catch (err) {
-    logger.error({ err, variables }, "Shopify GraphQL error");
+    logger.error({ err, variables }, "Shopify fetch error");
+    throw err;
+  }
+}
+
+/**
+ * Fetch Storefront API uniquement — utilisé pour les opérations cart.
+ * Lève une erreur si le token Storefront n'est pas configuré.
+ */
+export async function storefrontFetch<T>(
+  query: string,
+  variables?: Record<string, unknown>
+): Promise<T> {
+  if (!STOREFRONT_TOKEN || !SHOPIFY_DOMAIN) {
+    throw new Error(
+      "SHOPIFY_STOREFRONT_ACCESS_TOKEN requis pour les opérations panier. " +
+      "Configurez ce token dans les variables d'environnement Vercel."
+    );
+  }
+  const endpoint = `https://${SHOPIFY_DOMAIN}/api/${API_VERSION}/graphql.json`;
+  try {
+    logger.debug({ variables }, "Shopify Storefront fetch");
+    const res = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Shopify-Storefront-Access-Token": STOREFRONT_TOKEN,
+      },
+      body: JSON.stringify({ query, variables }),
+      cache: "no-store",
+    });
+
+    if (!res.ok) {
+      const text = await res.text();
+      logger.error({ status: res.status, text }, "Storefront HTTP error");
+      throw new Error(`Storefront API: HTTP ${res.status}`);
+    }
+
+    const json = await res.json();
+    if (json.errors?.length) {
+      logger.error({ errors: json.errors }, "Storefront GraphQL errors");
+      throw new Error(json.errors[0].message);
+    }
+    return json.data as T;
+  } catch (err) {
+    logger.error({ err, variables }, "Storefront fetch error");
     throw err;
   }
 }
