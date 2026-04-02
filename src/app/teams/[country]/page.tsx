@@ -124,10 +124,16 @@ export default async function CountryPage({ params }: PageProps) {
           {country.iso}
         </div>
 
-        {/* Drapeau — watermark droite */}
+        {/* Drapeau — watermark droite avec couleurs visibles */}
         <div
           className="absolute right-0 top-0 bottom-0 flex items-center justify-center pointer-events-none select-none"
-          style={{ fontSize: "clamp(10rem, 28vw, 20rem)", opacity: 0.06, lineHeight: 1, paddingRight: "2rem" }}
+          style={{
+            fontSize: "clamp(10rem, 28vw, 20rem)",
+            lineHeight: 1,
+            paddingRight: "2rem",
+            opacity: 0.18,
+            filter: `drop-shadow(0 0 60px ${primary}80)`,
+          }}
           aria-hidden
         >
           {country.flag}
