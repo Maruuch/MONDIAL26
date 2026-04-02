@@ -106,10 +106,28 @@ export default async function CountryPage({ params }: PageProps) {
             backgroundSize: "32px 32px",
           }}
         />
-        {/* Gros drapeau fond */}
+        {/* Code ISO — watermark gauche */}
+        <div
+          className="absolute left-0 top-0 bottom-0 flex items-center pointer-events-none select-none overflow-hidden"
+          style={{
+            fontSize: "clamp(8rem, 22vw, 18rem)",
+            fontFamily: "var(--font-barlow)",
+            fontWeight: 900,
+            lineHeight: 1,
+            letterSpacing: "-0.04em",
+            color: "#FFFFFF",
+            opacity: 0.03,
+            paddingLeft: "2rem",
+          }}
+          aria-hidden
+        >
+          {country.iso}
+        </div>
+
+        {/* Drapeau — watermark droite */}
         <div
           className="absolute right-0 top-0 bottom-0 flex items-center justify-center pointer-events-none select-none"
-          style={{ fontSize: "clamp(10rem, 30vw, 22rem)", opacity: 0.04, lineHeight: 1 }}
+          style={{ fontSize: "clamp(10rem, 28vw, 20rem)", opacity: 0.06, lineHeight: 1, paddingRight: "2rem" }}
           aria-hidden
         >
           {country.flag}
