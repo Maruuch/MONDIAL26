@@ -85,6 +85,23 @@ export default async function CountryPage({ params }: PageProps) {
   const primary   = country.colors.primary;
   const secondary = country.colors.secondary;
 
+  // URL image drapeau depuis flagcdn.com (résout l'emoji → vrai drapeau coloré)
+  function getFlagImageUrl(flag: string, iso: string): string {
+    // Drapeaux subdivisionnels (Écosse, Angleterre)
+    if (iso === "SCO") return "https://flagcdn.com/w320/gb-sct.png";
+    if (iso === "ENG") return "https://flagcdn.com/w320/gb-eng.png";
+    // Extraire le code alpha-2 des Regional Indicator characters de l'emoji
+    const pts = [...flag].map((c) => c.codePointAt(0) ?? 0);
+    if (pts.length >= 2 && pts[0] >= 0x1F1E6 && pts[0] <= 0x1F1FF) {
+      const code = pts.slice(0, 2)
+        .map((p) => String.fromCharCode(p - 0x1F1E6 + 65))
+        .join("")
+        .toLowerCase();
+      return `https://flagcdn.com/w320/${code}.png`;
+    }
+    return `https://flagcdn.com/w320/${iso.slice(0, 2).toLowerCase()}.png`;
+  }
+
   return (
     <div className="min-h-screen" style={{ background: "#0A0F1E" }}>
 
@@ -124,20 +141,24 @@ export default async function CountryPage({ params }: PageProps) {
           {country.iso}
         </div>
 
-        {/* Drapeau — watermark droite avec couleurs visibles */}
-        <div
-          className="absolute right-0 top-0 bottom-0 flex items-center justify-center pointer-events-none select-none"
-          style={{
-            fontSize: "clamp(10rem, 28vw, 20rem)",
-            lineHeight: 1,
-            paddingRight: "2rem",
-            opacity: 0.18,
-            filter: `drop-shadow(0 0 60px ${primary}80)`,
-          }}
+        {/* Drapeau — vraie image avec couleurs visibles */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={getFlagImageUrl(country.flag, country.iso)}
+          alt=""
           aria-hidden
-        >
-          {country.flag}
-        </div>
+          className="absolute pointer-events-none select-none"
+          style={{
+            right: "-4%",
+            top: "50%",
+            transform: "translateY(-50%)",
+            width: "clamp(240px, 45vw, 520px)",
+            height: "auto",
+            opacity: 0.18,
+            filter: `drop-shadow(0 0 40px ${primary}60)`,
+            borderRadius: "8px",
+          }}
+        />
 
         <div className="container mx-auto px-4 relative z-10">
           {/* Breadcrumb */}
