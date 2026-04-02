@@ -10,6 +10,21 @@ export const metadata: Metadata = {
 
 const GROUP_LETTERS = ["A","B","C","D","E","F","G","H","I","J","K","L"] as const;
 
+/** Emoji drapeau → URL image flagcdn.com */
+function getFlagUrl(flag: string, iso: string): string {
+  if (iso === "SCO") return "https://flagcdn.com/w80/gb-sct.png";
+  if (iso === "ENG") return "https://flagcdn.com/w80/gb-eng.png";
+  const pts = [...flag].map((c) => c.codePointAt(0) ?? 0);
+  if (pts.length >= 2 && pts[0] >= 0x1F1E6 && pts[0] <= 0x1F1FF) {
+    const code = pts.slice(0, 2)
+      .map((p) => String.fromCharCode(p - 0x1F1E6 + 65))
+      .join("")
+      .toLowerCase();
+    return `https://flagcdn.com/w80/${code}.png`;
+  }
+  return `https://flagcdn.com/w80/${iso.slice(0, 2).toLowerCase()}.png`;
+}
+
 export default function TeamsPage() {
   return (
     <div className="min-h-screen" style={{ background: "#0A0F1E" }}>
@@ -118,16 +133,25 @@ export default function TeamsPage() {
                       <Link
                         key={team.iso}
                         href={`/teams/${team.slug}`}
-                        className="team-row relative flex items-center gap-3 px-5 py-3 transition-colors duration-150"
+                        className="team-row relative flex items-center gap-3 px-4 py-3 transition-colors duration-150"
                         style={{
                           borderBottom: idx < teams.length - 1 ? "1px solid rgba(30,45,74,0.35)" : "none",
-                          // CSS custom properties pour hover
                           ["--team-color" as string]: team.colors.primary,
                         }}
                       >
-                        <span className="text-2xl flex-shrink-0 transition-transform duration-200 team-flag">
-                          {team.flag}
-                        </span>
+                        {/* Vrai drapeau image */}
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={getFlagUrl(team.flag, team.iso)}
+                          alt={team.name}
+                          className="team-flag flex-shrink-0 rounded-sm object-cover"
+                          style={{
+                            width: 32,
+                            height: 22,
+                            transition: "transform 0.2s ease",
+                            boxShadow: "0 1px 4px rgba(0,0,0,0.4)",
+                          }}
+                        />
                         <span className="flex-1 text-sm font-semibold text-wc-text leading-tight">
                           {team.name}
                         </span>
@@ -154,13 +178,12 @@ export default function TeamsPage() {
         </p>
       </section>
 
-      {/* CSS hover via classes globales */}
       <style>{`
         .team-row:hover {
           background: color-mix(in srgb, var(--team-color) 10%, transparent);
         }
         .team-row:hover .team-flag {
-          transform: scale(1.15);
+          transform: scale(1.12);
         }
         .team-row .team-arrow {
           color: transparent;
