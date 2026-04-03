@@ -183,6 +183,7 @@ export async function createDraftProduct(input: {
   descriptionHtml: string;
   vendor: string;
   tags: string[];
+  options?: string[];
   variants: Array<{
     sku: string;
     price: string;
