@@ -221,52 +221,19 @@ export async function createDraftProduct(input: {
   const productId = createData.productCreate.product!.id;
   logger.info({ productId }, "Shopify: product created (draft)");
 
-  // ── Étape 2 : Créer les options avec leurs valeurs possibles ─────────────
-  if (options.length > 0) {
-    // Construire les valeurs uniques par option depuis les variantes
-    const optionValues: Record<string, Set<string>> = {};
-    for (const opt of options) optionValues[opt] = new Set();
-    for (const v of variants) {
-      v.options.forEach((val, idx) => {
-        if (options[idx]) optionValues[options[idx]].add(val);
-      });
-    }
-
-    const createOptionsMutation = /* GraphQL */ `
-      mutation ProductOptionsCreate($productId: ID!, $options: [OptionCreateInput!]!) {
-        productOptionsCreate(productId: $productId, options: $options) {
-          product { id options { id name values } }
-          userErrors { field message }
-        }
-      }
-    `;
-    const optionsData = await adminFetch<{
-      productOptionsCreate: {
-        product: { id: string } | null;
-        userErrors: Array<{ field: string[]; message: string }>;
-      };
-    }>(createOptionsMutation, {
-      productId,
-      options: options.map((name) => ({
-        name,
-        values: [...optionValues[name]].map((v) => ({ name: v })),
-      })),
-    });
-
-    if (optionsData.productOptionsCreate.userErrors.length > 0) {
-      const msg = optionsData.productOptionsCreate.userErrors.map((e) => e.message).join(", ");
-      throw new Error(`[Shopify] productOptionsCreate: ${msg}`);
-    }
-    logger.info({ productId, options }, "Shopify: options created");
-  }
-
-  // ── Étape 3 : Créer les variantes en bulk ────────────────────────────────
+  // ── Étape 2 : Créer options + variantes en une seule mutation ───────────
+  // REMOVE_STANDALONE_VARIANT supprime la variante "Default Title" auto-créée
+  // par productCreate. optionValues crée les options à la volée.
   if (variants.length > 0) {
     const createVariantsMutation = /* GraphQL */ `
-      mutation ProductVariantsBulkCreate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
-        productVariantsBulkCreate(productId: $productId, variants: $variants) {
+      mutation ProductVariantsBulkCreate(
+        $productId: ID!,
+        $variants: [ProductVariantsBulkInput!]!,
+        $strategy: ProductVariantsBulkCreateStrategy
+      ) {
+        productVariantsBulkCreate(productId: $productId, variants: $variants, strategy: $strategy) {
           product { id }
-          productVariants { id sku price }
+          productVariants { id price }
           userErrors { field message }
         }
       }
@@ -283,10 +250,14 @@ export async function createDraftProduct(input: {
     const variantsData = await adminFetch<{
       productVariantsBulkCreate: {
         product: { id: string } | null;
-        productVariants: Array<{ id: string; sku: string }>;
+        productVariants: Array<{ id: string }>;
         userErrors: Array<{ field: string[]; message: string }>;
       };
-    }>(createVariantsMutation, { productId, variants: variantsInput });
+    }>(createVariantsMutation, {
+      productId,
+      variants: variantsInput,
+      strategy: "REMOVE_STANDALONE_VARIANT",
+    });
 
     if (variantsData.productVariantsBulkCreate.userErrors.length > 0) {
       const msg = variantsData.productVariantsBulkCreate.userErrors.map((e) => e.message).join(", ");
