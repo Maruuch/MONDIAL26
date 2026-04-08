@@ -235,7 +235,7 @@ export async function createDraftProduct(input: {
     const createOptionsMutation = /* GraphQL */ `
       mutation ProductOptionsCreate($productId: ID!, $options: [OptionCreateInput!]!) {
         productOptionsCreate(productId: $productId, options: $options) {
-          product { id options { id name values { id name } } }
+          product { id options { id name values } }
           userErrors { field message }
         }
       }
