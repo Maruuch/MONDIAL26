@@ -1,0 +1,175 @@
+{
+  "name": "WF-B — Create Product (football2026)",
+  "nodes": [
+    {
+      "id": "wfb-webhook",
+      "name": "Webhook Trigger WF-B",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [
+        240,
+        300
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "wf-b",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "wfb-validate",
+      "name": "Validate Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        300
+      ],
+      "parameters": {
+        "jsCode": "const b = $input.first().json.body || $input.first().json;\nconst { iso, design, cloudinaryUrl } = b;\nif (!iso) throw new Error('Missing: iso');\nif (!design || !['D1','D2','D3','D4'].includes(design)) throw new Error('Invalid design — expected D1/D2/D3/D4');\nif (!cloudinaryUrl) throw new Error('Missing: cloudinaryUrl');\nreturn [{ json: { iso: iso.toUpperCase(), design, cloudinaryUrl } }];"
+      }
+    },
+    {
+      "id": "wfb-create",
+      "name": "Create Product (Next.js)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        680,
+        300
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://football2026.com/api/products/create",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer 82384b03f99d42502ddc3fc3eb1c8d0416786f2193f837900fa34bc54fe748fc"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ iso: $('Validate Input').first().json.iso, design: $('Validate Input').first().json.design, cloudinaryUrl: $('Validate Input').first().json.cloudinaryUrl }) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "wfb-sign",
+      "name": "Sign Callback",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        300
+      ],
+      "parameters": {
+        "jsCode": "const { iso, design, cloudinaryUrl } = $('Validate Input6').first().json;\nconst { printfulProductId, shopifyProductId } = $input.first().json;\n\nif (!shopifyProductId) throw new Error('Create Product renvoyé une erreur : ' + JSON.stringify($input.first().json));\n\nconst secret = '82384b03f99d42502ddc3fc3eb1c8d0416786f2193f837900fa34bc54fe748fc';\n\nconst callbackPayload = {\n  event: 'wfb.product_published',\n  iso,\n  design,\n  shopifyProductId: String(shopifyProductId),\n  printfulProductId: Number(printfulProductId)\n};\n\nconst bodyStr = JSON.stringify(callbackPayload);\n// $hmac() : built-in n8n, pas besoin de module externe\nconst sig = $hmac(bodyStr, secret, 'sha256');\n\nreturn [{ json: { bodyStr, sig, shopifyProductId, printfulProductId, iso, design } }];"
+      }
+    },
+    {
+      "id": "wfb-notify",
+      "name": "Notify Next.js wfb.product_published",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1120,
+        300
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://football2026.com/api/webhooks/n8n",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-n8n-signature",
+              "value": "={{ $json.sig }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "raw",
+        "body": "={{ $json.bodyStr }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "wfb-respond",
+      "name": "Respond 200",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1340,
+        300
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: true, shopifyProductId: $('Sign Callback').first().json.shopifyProductId, printfulProductId: $('Sign Callback').first().json.printfulProductId }) }}",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Webhook Trigger WF-B": {
+      "main": [
+        [
+          {
+            "node": "Validate Input",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Respond 200",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Input": {
+      "main": [
+        [
+          {
+            "node": "Create Product (Next.js)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Product (Next.js)": {
+      "main": [
+        [
+          {
+            "node": "Sign Callback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sign Callback": {
+      "main": [
+        [
+          {
+            "node": "Notify Next.js wfb.product_published",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}
