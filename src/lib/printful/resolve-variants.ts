@@ -69,17 +69,28 @@ const POD_SIZE_MAP: Record<Gender, Record<string, string>> = {
   WOMEN: { XS: "XS", S: "S", M: "M", L: "L", XL: "XL" },
 };
 
-const MAP_FILE_PATH = path.join(process.cwd(), "src/lib/printful/variant-map.json");
+// Fichier source bundlé (lecture initiale, read-only sur Vercel)
+const MAP_FILE_BUNDLE = path.join(process.cwd(), "src/lib/printful/variant-map.json");
+// Cache runtime dans /tmp — seul répertoire inscriptible sur Vercel lambdas
+const MAP_FILE_TMP = "/tmp/printful-variant-map.json";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 async function readMap(): Promise<VariantMap> {
-  const raw = await fs.readFile(MAP_FILE_PATH, "utf-8");
-  return JSON.parse(raw) as VariantMap;
+  // Priorité : cache /tmp (déjà hydraté dans ce container)
+  try {
+    const raw = await fs.readFile(MAP_FILE_TMP, "utf-8");
+    return JSON.parse(raw) as VariantMap;
+  } catch {
+    // Première invocation du container → lire le fichier bundlé
+    const raw = await fs.readFile(MAP_FILE_BUNDLE, "utf-8");
+    return JSON.parse(raw) as VariantMap;
+  }
 }
 
 async function writeMap(map: VariantMap): Promise<void> {
-  await fs.writeFile(MAP_FILE_PATH, JSON.stringify(map, null, 2), "utf-8");
+  // Écriture dans /tmp (inscriptible sur Vercel et en local)
+  await fs.writeFile(MAP_FILE_TMP, JSON.stringify(map, null, 2), "utf-8");
 }
 
 function isMapHydrated(map: VariantMap): boolean {
