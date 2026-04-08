@@ -34,7 +34,6 @@ interface VariantMap {
   };
   MEN: VariantMapEntry;
   WOMEN: VariantMapEntry;
-  KIDS: VariantMapEntry;
 }
 
 interface PrintfulCatalogVariant {
@@ -57,9 +56,8 @@ interface PrintfulProduct {
 // KIDS : Bella+Canvas 3001Y Youth (id: 74 sur Printful)
 // 👉 À confirmer via GET https://api.printful.com/products (liste catalogue)
 const PRINTFUL_CATALOG_PRODUCT_IDS: Record<Gender, number> = {
-  MEN: 71,     // Bella+Canvas 3001 Unisex T-Shirt — à ajuster
+  MEN: 71,     // Bella+Canvas 3001 Unisex T-Shirt
   WOMEN: 71,   // Même base, variantes F différenciées par taille
-  KIDS: 74,    // Bella+Canvas 3001Y Youth T-Shirt — à ajuster
 };
 
 /**
@@ -69,22 +67,6 @@ const PRINTFUL_CATALOG_PRODUCT_IDS: Record<Gender, number> = {
 const POD_SIZE_MAP: Record<Gender, Record<string, string>> = {
   MEN: { S: "S", M: "M", L: "L", XL: "XL", XXL: "2XL" },
   WOMEN: { XS: "XS", S: "S", M: "M", L: "L", XL: "XL" },
-  KIDS: {
-    "0-1": "6M",
-    "1-2": "12M",
-    "2-3": "2T",
-    "3-4": "4T",
-    "4-5": "5-6",
-    "5-6": "7-8",
-    "6-7": "9-11",
-    "7-8": "12-14",
-    "8-9": "S",
-    "9-10": "M",
-    "10-11": "L",
-    "11-12": "XL",
-    "12-13": "2XL",
-    "13-14": "3XL",
-  },
 };
 
 const MAP_FILE_PATH = path.join(process.cwd(), "src/lib/printful/variant-map.json");
@@ -101,7 +83,7 @@ async function writeMap(map: VariantMap): Promise<void> {
 }
 
 function isMapHydrated(map: VariantMap): boolean {
-  const genders: Gender[] = ["MEN", "WOMEN", "KIDS"];
+  const genders: Gender[] = ["MEN", "WOMEN"];
   for (const gender of genders) {
     const entry = map[gender];
     if (!entry.printful_product_id) return false;
@@ -183,7 +165,7 @@ export async function resolvePrintfulVariants(
   }
 
   logger.info("Printful variant map: hydrating from API…");
-  const genders: Gender[] = ["MEN", "WOMEN", "KIDS"];
+  const genders: Gender[] = ["MEN", "WOMEN"];
 
   for (const gender of genders) {
     const catalogId = PRINTFUL_CATALOG_PRODUCT_IDS[gender];

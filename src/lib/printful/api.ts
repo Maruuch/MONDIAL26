@@ -40,7 +40,7 @@ async function buildPrintfulVariants(
 ): Promise<PrintfulVariantInput[]> {
   const variantMap = await resolvePrintfulVariants();
   const variants: PrintfulVariantInput[] = [];
-  const genders: Gender[] = ["MEN", "WOMEN", "KIDS"];
+  const genders: Gender[] = ["MEN", "WOMEN"];
 
   for (const gender of genders) {
     for (const size of SIZES[gender]) {

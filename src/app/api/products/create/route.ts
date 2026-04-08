@@ -110,7 +110,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     });
 
     // 4. Construire variantes Shopify : options["Genre", "Taille"] × genre × taille
-    const genders: Gender[] = ["MEN", "WOMEN", "KIDS"];
+    const genders: Gender[] = ["MEN", "WOMEN"];
     const shopifyVariants: Array<{ sku: string; price: string; options: string[] }> = [];
 
     for (const gender of genders) {
