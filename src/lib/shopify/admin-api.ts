@@ -211,6 +211,20 @@ export async function createDraftProduct(input: {
     }
   `;
 
+  // Dériver productOptions (obligatoire) depuis les variants
+  const optionValuesMap = new Map<string, Set<string>>();
+  for (const v of variants) {
+    v.options.forEach((val, idx) => {
+      const optName = options[idx] ?? `Option${idx + 1}`;
+      if (!optionValuesMap.has(optName)) optionValuesMap.set(optName, new Set());
+      optionValuesMap.get(optName)!.add(val);
+    });
+  }
+  const productOptions = Array.from(optionValuesMap.entries()).map(([name, vals]) => ({
+    name,
+    values: Array.from(vals).map((v) => ({ name: v })),
+  }));
+
   const variantsInput = variants.map((v) => ({
     price: v.price,
     inventoryItem: { sku: v.sku },
@@ -238,6 +252,7 @@ export async function createDraftProduct(input: {
       vendor,
       tags,
       status: "DRAFT",
+      productOptions,
       variants: variantsInput,
     },
   });
