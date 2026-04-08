@@ -15,13 +15,11 @@ export function buildSKU({ iso, design, gender, size }: SKUParts): string {
  */
 export function parseSKU(sku: string): SKUParts {
   const parts = sku.split("-");
-  // Gestion des tailles KIDS multi-parties ex: ARG-D2-KIDS-3-4-2026
   if (parts.length < 5) throw new Error(`SKU invalide : "${sku}"`);
 
   const iso = parts[0];
   const design = parts[1] as DesignCode;
   const gender = parts[2] as Gender;
-  // La taille peut contenir des tirets (KIDS), la dernière partie est "2026"
   const size = parts.slice(3, -1).join("-");
 
   return { iso, design, gender, size };
@@ -36,7 +34,7 @@ export function generateAllSKUs(
 ): string[] {
   const { SIZES } = require("@/types");
   const skus: string[] = [];
-  const genders: Gender[] = ["MEN", "WOMEN", "KIDS"];
+  const genders: Gender[] = ["MEN", "WOMEN"];
   for (const gender of genders) {
     for (const size of SIZES[gender]) {
       skus.push(buildSKU({ iso, design, gender, size }));

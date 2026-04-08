@@ -13,8 +13,8 @@ export function VariantSelector({ variants, onVariantSelect }: VariantSelectorPr
   const [selectedGender, setSelectedGender] = useState<Gender | null>(null);
   const [selectedVariant, setSelectedVariant] = useState<ShopifyProductVariant | null>(null);
 
-  const genders: Gender[] = ["MEN", "WOMEN", "KIDS"];
-  const genderLabels: Record<Gender, string> = { MEN: "Homme", WOMEN: "Femme", KIDS: "Enfant" };
+  const genders: Gender[] = ["MEN", "WOMEN"];
+  const genderLabels: Record<Gender, string> = { MEN: "Homme", WOMEN: "Femme" };
   const availableSizes = selectedGender ? SIZES[selectedGender] : [];
 
   function getVariantForSize(size: string) {
