@@ -21,7 +21,7 @@ interface PrintfulVariantInput {
   retail_price: string;
   sku: string;
   files: Array<{
-    placement: "front" | "back";
+    type: "front" | "back";
     url: string;
   }>;
 }
@@ -57,7 +57,7 @@ async function buildPrintfulVariants(
         variant_id: variantId,
         retail_price: retailPrice,
         sku,
-        files: [{ placement: "front", url: cloudinaryUrl }],
+        files: [{ type: "front", url: cloudinaryUrl }],
       });
     }
   }
@@ -100,7 +100,7 @@ export async function createPrintfulProduct(params: {
       name: productName,
       thumbnail: cloudinaryUrl,
     },
-    variants,
+    sync_variants: variants,
   };
 
   logger.info({ externalId, iso, design, variantCount: variants.length }, "Creating Printful product");
