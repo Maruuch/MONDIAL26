@@ -9,7 +9,7 @@ let _cachedPublicationId: string | null = null;
 
 const SHOPIFY_DOMAIN = process.env.SHOPIFY_STORE_DOMAIN!;
 const SHOPIFY_ADMIN_KEY = process.env.SHOPIFY_ADMIN_API_KEY!;
-const ADMIN_API_VERSION = "2024-10";
+const ADMIN_API_VERSION = "2023-10";
 
 const adminEndpoint = `https://${SHOPIFY_DOMAIN}/admin/api/${ADMIN_API_VERSION}/graphql.json`;
 
