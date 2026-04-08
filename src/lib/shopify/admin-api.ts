@@ -176,11 +176,12 @@ export async function upsertProductMetafield(
 }
 
 /**
- * Crée un produit draft avec ses variantes.
- * Flux 3 étapes (API Shopify ≥ 2024-04) :
- *   1. productCreate        — titre, description, vendor, tags, status
- *   2. productOptionsCreate — options Genre + Taille avec leurs valeurs
- *   3. productVariantsBulkCreate — variantes référençant les optionValues
+ * Crée un produit draft avec ses variantes via productSet (API 2025-01).
+ *
+ * productSet (synchronous: true) crée produit + options + variantes exactes
+ * en un seul appel — pas de combinatoire non voulue, pas de "Default Title".
+ *
+ * Ref: https://shopify.dev/docs/api/admin-graphql/2025-01/mutations/productSet
  */
 export async function createDraftProduct(input: {
   title: string;
@@ -196,80 +197,65 @@ export async function createDraftProduct(input: {
 }): Promise<string> {
   const { title, descriptionHtml, vendor, tags, options = [], variants } = input;
 
-  // ── Étape 1 : Créer le produit (sans options ni variantes) ───────────────
-  const createMutation = /* GraphQL */ `
-    mutation CreateProduct($input: ProductInput!) {
-      productCreate(input: $input) {
+  const productSetMutation = /* GraphQL */ `
+    mutation ProductSet($synchronous: Boolean!, $input: ProductSetInput!) {
+      productSet(synchronous: $synchronous, input: $input) {
         product { id }
-        userErrors { field message }
+        productSetOperation {
+          id
+          status
+          userErrors { field message code }
+        }
+        userErrors { field message code }
       }
     }
   `;
-  const createData = await adminFetch<{
-    productCreate: {
+
+  const variantsInput = variants.map((v) => ({
+    price: v.price,
+    inventoryItem: { sku: v.sku },
+    optionValues: v.options.map((val, idx) => ({
+      optionName: options[idx] ?? `Option${idx + 1}`,
+      name: val,
+    })),
+  }));
+
+  const data = await adminFetch<{
+    productSet: {
       product: { id: string } | null;
-      userErrors: Array<{ field: string[]; message: string }>;
+      productSetOperation: {
+        id: string;
+        status: string;
+        userErrors: Array<{ field: string[]; message: string; code: string }>;
+      } | null;
+      userErrors: Array<{ field: string[]; message: string; code: string }>;
     };
-  }>(createMutation, {
-    input: { title, descriptionHtml, vendor, tags, status: "DRAFT" },
+  }>(productSetMutation, {
+    synchronous: true,
+    input: {
+      title,
+      descriptionHtml,
+      vendor,
+      tags,
+      status: "DRAFT",
+      variants: variantsInput,
+    },
   });
 
-  if (createData.productCreate.userErrors.length > 0) {
-    const msg = createData.productCreate.userErrors.map((e) => e.message).join(", ");
-    throw new Error(`[Shopify] productCreate: ${msg}`);
-  }
-  const productId = createData.productCreate.product!.id;
-  logger.info({ productId }, "Shopify: product created (draft)");
-
-  // ── Étape 2 : Créer options + variantes (strategy CREATE_PREEXISTING) ────
-  // CREATE_PREEXISTING_OPTIONS_AS_SUPERSEDED :
-  //   - remplace l'option/variante "Default Title" créée par productCreate
-  //   - crée les nouvelles options à la volée via optionValues
-  //   - ne nécessite PAS d'appel préalable à productOptionsCreate
-  if (variants.length > 0) {
-    const createVariantsMutation = /* GraphQL */ `
-      mutation ProductVariantsBulkCreate(
-        $productId: ID!,
-        $variants: [ProductVariantsBulkInput!]!,
-        $strategy: ProductVariantsBulkCreateStrategy
-      ) {
-        productVariantsBulkCreate(productId: $productId, variants: $variants, strategy: $strategy) {
-          product { id }
-          productVariants { id price }
-          userErrors { field message }
-        }
-      }
-    `;
-    const variantsInput = variants.map((v) => ({
-      price: v.price,
-      inventoryItem: { sku: v.sku },
-      optionValues: v.options.map((val, idx) => ({
-        optionName: options[idx],
-        name: val,
-      })),
-    }));
-
-    const variantsData = await adminFetch<{
-      productVariantsBulkCreate: {
-        product: { id: string } | null;
-        productVariants: Array<{ id: string }>;
-        userErrors: Array<{ field: string[]; message: string }>;
-      };
-    }>(createVariantsMutation, {
-      productId,
-      variants: variantsInput,
-      strategy: "CREATE_PREEXISTING_OPTIONS_AS_SUPERSEDED",
-    });
-
-    if (variantsData.productVariantsBulkCreate.userErrors.length > 0) {
-      const msg = variantsData.productVariantsBulkCreate.userErrors.map((e) => e.message).join(", ");
-      throw new Error(`[Shopify] productVariantsBulkCreate: ${msg}`);
-    }
-    logger.info(
-      { productId, count: variantsData.productVariantsBulkCreate.productVariants.length },
-      "Shopify: variants created"
-    );
+  const errs = [
+    ...(data.productSet.userErrors ?? []),
+    ...(data.productSet.productSetOperation?.userErrors ?? []),
+  ];
+  if (errs.length > 0) {
+    const msg = errs.map((e) => e.message).join(", ");
+    throw new Error(`[Shopify] productSet: ${msg}`);
   }
 
+  const productId = data.productSet.product?.id;
+  if (!productId) {
+    throw new Error("[Shopify] productSet: aucun product ID retourné");
+  }
+
+  logger.info({ productId, variantCount: variants.length }, "Shopify: product created via productSet");
   return productId;
 }
