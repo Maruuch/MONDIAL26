@@ -105,13 +105,15 @@ export async function createPrintfulProduct(params: {
 
   logger.info({ externalId, iso, design, variantCount: variants.length }, "Creating Printful product");
 
-  const result = await printfulFetch<{ id: number; external_id: string }>(
-    "/store/products",
-    { method: "POST", body: JSON.stringify(body) }
-  );
+  // Printful v2 : POST /store/products retourne { sync_product: {...}, sync_variants: [...] }
+  const result = await printfulFetch<{
+    sync_product: { id: number; external_id: string };
+    sync_variants: unknown[];
+  }>("/store/products", { method: "POST", body: JSON.stringify(body) });
 
-  logger.info({ printfulId: result.id, externalId }, "Printful product created");
-  return result;
+  const { id, external_id } = result.sync_product;
+  logger.info({ printfulId: id, externalId }, "Printful product created");
+  return { id, external_id };
 }
 
 /**
@@ -121,7 +123,11 @@ export async function getPrintfulProductByExternalId(
   externalId: string
 ): Promise<PrintfulSyncProduct | null> {
   try {
-    return await printfulFetch<PrintfulSyncProduct>(`/store/products/@${externalId}`);
+    // Printful v2 : GET /store/products/@id retourne { sync_product: {...}, sync_variants: [...] }
+    const data = await printfulFetch<{ sync_product: PrintfulSyncProduct }>(
+      `/store/products/@${externalId}`
+    );
+    return data.sync_product ?? null;
   } catch {
     return null;
   }
