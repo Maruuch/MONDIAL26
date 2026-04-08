@@ -26,7 +26,7 @@ async function main() {
     const map = await resolvePrintfulVariants({ forceRefresh });
     console.log("✅ Variant map hydrated successfully:\n");
 
-    for (const gender of ["MEN", "WOMEN", "KIDS"] as const) {
+    for (const gender of ["MEN", "WOMEN"] as const) {
       const entry = map[gender];
       console.log(`📦 ${gender} (Printful product #${entry.printful_product_id})`);
       for (const [size, id] of Object.entries(entry.variants)) {
