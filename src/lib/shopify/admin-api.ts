@@ -272,8 +272,8 @@ export async function createDraftProduct(input: {
       }
     `;
     const variantsInput = variants.map((v) => ({
-      sku: v.sku,
       price: v.price,
+      inventoryItem: { sku: v.sku },
       optionValues: v.options.map((val, idx) => ({
         optionName: options[idx],
         name: val,
