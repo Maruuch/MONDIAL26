@@ -221,9 +221,38 @@ export async function createDraftProduct(input: {
   const productId = createData.productCreate.product!.id;
   logger.info({ productId }, "Shopify: product created (draft)");
 
-  // ── Étape 2 : Créer options + variantes en une seule mutation ───────────
-  // REMOVE_STANDALONE_VARIANT supprime la variante "Default Title" auto-créée
-  // par productCreate. optionValues crée les options à la volée.
+  // ── Étape 2 : Créer les options (sans valeurs) ───────────────────────────
+  // On crée juste les noms d'options — pas de valeurs, donc pas de variantes auto.
+  // productVariantsBulkCreate créera les valeurs à l'étape suivante.
+  if (options.length > 0) {
+    const createOptionsMutation = /* GraphQL */ `
+      mutation ProductOptionsCreate($productId: ID!, $options: [OptionCreateInput!]!) {
+        productOptionsCreate(productId: $productId, options: $options) {
+          product { id }
+          userErrors { field message }
+        }
+      }
+    `;
+    const optionsData = await adminFetch<{
+      productOptionsCreate: {
+        product: { id: string } | null;
+        userErrors: Array<{ field: string[]; message: string }>;
+      };
+    }>(createOptionsMutation, {
+      productId,
+      options: options.map((name) => ({ name })),  // noms uniquement, sans valeurs
+    });
+
+    if (optionsData.productOptionsCreate.userErrors.length > 0) {
+      const msg = optionsData.productOptionsCreate.userErrors.map((e) => e.message).join(", ");
+      throw new Error(`[Shopify] productOptionsCreate: ${msg}`);
+    }
+    logger.info({ productId, options }, "Shopify: options created (empty)");
+  }
+
+  // ── Étape 3 : Créer les variantes + peupler les valeurs d'options ────────
+  // REMOVE_STANDALONE_VARIANT supprime la variante "Default Title" auto-créée.
+  // optionValues référence les options créées à l'étape 2 et ajoute leurs valeurs.
   if (variants.length > 0) {
     const createVariantsMutation = /* GraphQL */ `
       mutation ProductVariantsBulkCreate(
