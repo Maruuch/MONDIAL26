@@ -105,15 +105,26 @@ export async function createPrintfulProduct(params: {
 
   logger.info({ externalId, iso, design, variantCount: variants.length }, "Creating Printful product");
 
-  // Printful v2 : POST /store/products retourne { sync_product: {...}, sync_variants: [...] }
-  const result = await printfulFetch<{
-    sync_product: { id: number; external_id: string };
-    sync_variants: unknown[];
-  }>("/store/products", { method: "POST", body: JSON.stringify(body) });
+  // Printful v1: POST /store/products peut retourner { sync_product, sync_variants }
+  // OU directement { id, external_id, ... } selon la version de l'API
+  const result = await printfulFetch<Record<string, unknown>>(
+    "/store/products",
+    { method: "POST", body: JSON.stringify(body) }
+  );
 
-  const { id, external_id } = result.sync_product;
-  logger.info({ printfulId: id, externalId }, "Printful product created");
-  return { id, external_id };
+  logger.info({ resultKeys: Object.keys(result) }, "Printful createProduct raw result keys");
+
+  // Normalisation : gère les deux structures possibles
+  const syncProduct = (result.sync_product as { id: number; external_id: string } | undefined)
+    ?? (result as unknown as { id: number; external_id: string });
+
+  if (!syncProduct?.id) {
+    logger.error({ result }, "Printful createProduct: impossible de trouver l'ID produit");
+    throw new Error(`[Printful] createProduct: ID introuvable dans la réponse — clés: ${Object.keys(result).join(", ")}`);
+  }
+
+  logger.info({ printfulId: syncProduct.id, externalId }, "Printful product created");
+  return { id: syncProduct.id, external_id: syncProduct.external_id ?? externalId };
 }
 
 /**
