@@ -1,49 +1,52 @@
 # Teams — FIFA World Cup 2026
 
-Structure des 48 équipes qualifiées. Chaque dossier est nommé selon le code **ISO 3166-1 alpha-3** du pays.
+Structure des 48 équipes qualifiées. Chaque dossier porte le code **ISO 3166-1 alpha-2** du pays (2 caractères).
 
 ## Structure d'un dossier équipe
 
 ```
 teams/
-  FRA/
-    emblem      ← Image de l'emblème (PNG/JPG, min 1500×1500px, 150 DPI)
-    file2       ← Design 2 (à renommer une fois le D1 validé)
-    file3       ← Design 3
-    file4       ← Design 4
+  FR/
+    emblem/       ← déposer ici : emblem_FR.png
+    file2/        ← design 2 (renommer plus tard)
+    file3/        ← design 3
+    file4/        ← design 4
 ```
+
+## Convention de nommage des fichiers
+
+| Dossier   | Fichier attendu        | Exemple          |
+|-----------|------------------------|------------------|
+| `emblem/` | `emblem_{ISO}.png`     | `emblem_FR.png`  |
+| `file2/`  | à définir              | —                |
+| `file3/`  | à définir              | —                |
+| `file4/`  | à définir              | —                |
 
 ## URL GitHub brute (pour l'API Printful)
 
 ```
-https://raw.githubusercontent.com/{owner}/{repo}/main/teams/{ISO}/emblem.png
+https://raw.githubusercontent.com/Maruuch/MONDIAL26/main/teams/{ISO}/emblem/emblem_{ISO}.png
 ```
 
-Exemple : `https://raw.githubusercontent.com/…/main/teams/FRA/emblem.png`
+Exemple : `.../teams/FR/emblem/emblem_FR.png`
 
 ## Équipes par confédération
 
 ### CONCACAF (8) — dont 3 hôtes
-`USA` `CAN` `MEX` `PAN` `JAM` `HND` `SLV` `CRC`
+`US` `CA` `MX` `PA` `JM` `HN` `SV` `CR`
 
 ### CONMEBOL (6)
-`ARG` `BRA` `COL` `URU` `ECU` `VEN`
+`AR` `BR` `CO` `UY` `EC` `VE`
 
 ### UEFA (16)
-`FRA` `ESP` `ENG` `DEU` `PRT` `ITA` `NLD` `BEL`
-`HRV` `CHE` `AUT` `TUR` `SRB` `POL` `DNK` `HUN`
+`FR` `ES` `EN` `DE` `PT` `IT` `NL` `BE`
+`HR` `CH` `AT` `TR` `RS` `PL` `DK` `HU`
 
 ### CAF (9)
-`MAR` `SEN` `EGY` `NGA` `CMR` `CIV` `GHA` `TUN` `ALG`
+`MA` `SN` `EG` `NG` `CM` `CI` `GH` `TN` `DZ`
 
 ### AFC (8)
-`JPN` `KOR` `IRN` `AUS` `SAU` `IRQ` `JOR` `UZB`
+`JP` `KR` `IR` `AU` `SA` `IQ` `JO` `UZ`
 
 ### OFC (1)
-`NZL`
-
-## Notes
-- Les fichiers `emblem`, `file2`, `file3`, `file4` sont des placeholders.
-- Remplacer chaque placeholder par l'image correspondante (ex: `emblem.png`).
-- Mettre à jour les références dans `src/lib/config/teams.ts` si l'extension change.
-- Certaines qualifications intercontinentales peuvent modifier la liste — vérifier la liste officielle FIFA.
+`NZ`
