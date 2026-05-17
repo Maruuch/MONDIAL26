@@ -90,8 +90,13 @@ const COUNTRIES = [
 ];
 
 // ── Payload API v1 (fallback) ─────────────────────────────────────────────
-// v1 n'a pas de textbox — le dos doit être un fichier image pré-généré
-// Pour l'instant on ne met que l'emblème + laisse le dos vide (à compléter)
+// v1 : type = nom du placement, supporte id (fichier existant) ou url
+// Manches : réutilise les fichiers du produit BA (id fixe, même design)
+//   left sleeve  fileId 989546368 = clipart volleyball
+//   right sleeve fileId 989546367 = WORLD/2026/CUP (couleurs BA par défaut)
+const SLEEVE_LEFT_FILE_ID  = 989546368;
+const SLEEVE_RIGHT_FILE_ID = 989546367;
+
 function buildPayloadV1(country) {
   const emblemUrl = `${GITHUB}/teams/${country.iso}/emblem/emblem_${country.iso}.png`;
   return {
@@ -100,7 +105,9 @@ function buildPayloadV1(country) {
       variant_id:   v.id,
       retail_price: v.price,
       files: [
-        { placement: 'chest_left_dtf', url: emblemUrl, type: 'default' },
+        { type: 'chest_left_dtf',       url: emblemUrl },
+        { type: 'short_sleeve_left_dtf', id: SLEEVE_LEFT_FILE_ID  },
+        { type: 'short_sleeve_right_dtf',id: SLEEVE_RIGHT_FILE_ID },
       ],
     })),
   };
@@ -158,6 +165,58 @@ function buildPayload(country) {
           },
         ],
       },
+      // Manche gauche — volleyball clipart (même pour tous les pays)
+      {
+        placement: 'short_sleeve_left_dtf',
+        technique:  'dtfilm',
+        layers: [{ type: 'file', id: SLEEVE_LEFT_FILE_ID }],
+      },
+      // Manche droite — WORLD / 2026 / CUP aux couleurs du pays
+      {
+        placement: 'short_sleeve_right_dtf',
+        technique:  'dtfilm',
+        layers: [
+          {
+            type: 'textbox',
+            position: { width: 1.14, height: 0.3, top: 0.1, left: 0.28 },
+            layer_options: [
+              { id: 'text',         value: 'WORLD' },
+              { id: 'font_family',  value: 'Aladin' },
+              { id: 'font_size',    value: 0.25 },
+              { id: 'text_align',   value: 'center' },
+              { id: 'text_color',   value: secondary },
+              { id: 'stroke_color', value: primary },
+              { id: 'stroke_width', value: 0.04 },
+            ],
+          },
+          {
+            type: 'textbox',
+            position: { width: 1.67, height: 0.55, top: 0.45, left: 0.015 },
+            layer_options: [
+              { id: 'text',         value: '2026' },
+              { id: 'font_family',  value: 'Caveat Brush' },
+              { id: 'font_size',    value: 0.50 },
+              { id: 'text_align',   value: 'center' },
+              { id: 'text_color',   value: primary },
+              { id: 'stroke_color', value: secondary },
+              { id: 'stroke_width', value: 0.04 },
+            ],
+          },
+          {
+            type: 'textbox',
+            position: { width: 0.71, height: 0.3, top: 1.05, left: 0.495 },
+            layer_options: [
+              { id: 'text',         value: 'CUP' },
+              { id: 'font_family',  value: 'Aladin' },
+              { id: 'font_size',    value: 0.25 },
+              { id: 'text_align',   value: 'center' },
+              { id: 'text_color',   value: secondary },
+              { id: 'stroke_color', value: primary },
+              { id: 'stroke_width', value: 0.04 },
+            ],
+          },
+        ],
+      },
     ],
   }));
 
@@ -187,8 +246,8 @@ async function createProduct(country) {
     body: JSON.stringify(payload),
   });
 
-  // Essai 2 : API v1 si v2 renvoie 404
-  if (resp.status === 404) {
+  // Essai 2 : API v1 si v2 échoue (404 = endpoint absent, 4xx = payload rejeté)
+  if (!resp.ok) {
     const v1Payload = buildPayloadV1(country);
     resp = await fetch('https://api.printful.com/store/products', {
       method:  'POST',
