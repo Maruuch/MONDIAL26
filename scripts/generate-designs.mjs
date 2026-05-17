@@ -3,9 +3,25 @@
  * Génère les SVG back + sleeve_right + sleeve_left pour chaque pays
  * et les uploade sur Cloudinary.
  *
+ * Référence visuelle : produit BA (433424285) dans le designer Printful.
+ *
+ * DOS — layout validé sur BA :
+ *   • Nom du pays  : Aladin, ~260px, ARC (courbe vers le haut), fill=p, stroke=s
+ *   • Slogan       : Caveat Brush, ~520px adaptatif, DROIT, fill=s, stroke=p
+ *   • Pas de bandes couleur — design épuré sur fond blanc
+ *
+ * MANCHE DROITE : WORLD/2026/CUP
+ *   • WORLD, CUP   : Aladin small, fill=s, stroke=p
+ *   • 2026         : Caveat Brush large, fill=p, stroke=s
+ *   • Pas de bandes
+ *
+ * MANCHE GAUCHE : ballon de volleyball
+ *   • Cercle + 3 coutures courbes, double trait (s=extérieur, p=intérieur)
+ *   • Fond blanc, pas de texte
+ *
  * Usage:
- *   node scripts/generate-designs.mjs                # tous les pays
- *   node scripts/generate-designs.mjs --test         # France seulement
+ *   node scripts/generate-designs.mjs
+ *   node scripts/generate-designs.mjs --test          # France uniquement
  *   node scripts/generate-designs.mjs --skip-existing
  */
 
@@ -22,23 +38,20 @@ const TEST          = args.includes('--test');
 const SKIP_EXISTING = args.includes('--skip-existing');
 const URLS_FILE     = path.join('scripts', 'design-urls.json');
 
-// ── Pays (identique au batch script) ─────────────────────────────────────
+// ── Pays ──────────────────────────────────────────────────────────────────
 const COUNTRIES = [
-  // CONCACAF
   { iso:'US', name:'United States',          slogan:'USA! USA',                           p:'#B22234', s:'#3C3B6E' },
   { iso:'CA', name:'Canada',                 slogan:'Go Canada Go',                       p:'#FF0000', s:'#D4AF37' },
   { iso:'MX', name:'Mexico',                 slogan:'¡Vamos México',                      p:'#006847', s:'#CE1126' },
   { iso:'PA', name:'Panama',                 slogan:'¡Vamos Panamá',                      p:'#DA121A', s:'#1C4B9D' },
   { iso:'HT', name:'Haiti',                  slogan:'Ann ale Ayiti',                      p:'#00209F', s:'#D21034' },
   { iso:'CW', name:'Curaçao',               slogan:'Kòrsou, laga nos bai',               p:'#002B7F', s:'#F1B02A' },
-  // CONMEBOL
   { iso:'AR', name:'Argentina',              slogan:'¡Vamos Argentina',                   p:'#74ACDF', s:'#F6B40E' },
   { iso:'BR', name:'Brazil',                 slogan:'Vai Brasil',                         p:'#009C3B', s:'#FFDF00' },
   { iso:'CO', name:'Colombia',               slogan:'¡Vamos Colombia',                    p:'#FCD116', s:'#CE1126' },
   { iso:'EC', name:'Ecuador',                slogan:'¡Vamos Ecuador',                     p:'#FFD100', s:'#003DA5' },
   { iso:'PY', name:'Paraguay',               slogan:'¡Vamos Paraguay',                    p:'#D52B1E', s:'#0038A8' },
   { iso:'UY', name:'Uruguay',                slogan:'¡Vamos Uruguay',                     p:'#0038A8', s:'#F6B40E' },
-  // UEFA
   { iso:'AT', name:'Austria',                slogan:'Auf geht\'s Österreich',             p:'#ED2939', s:'#C8941A' },
   { iso:'BA', name:'Bosnia and Herzegovina', slogan:'Idemo Zmajevi',                      p:'#002395', s:'#FBBC04', skip:true },
   { iso:'HR', name:'Croatia',                slogan:'Idemo Hrvatska',                     p:'#FF0000', s:'#0093DD' },
@@ -55,7 +68,6 @@ const COUNTRIES = [
   { iso:'SE', name:'Sweden',                 slogan:'Heja Sverige',                       p:'#006AA7', s:'#FECC02' },
   { iso:'CH', name:'Switzerland',            slogan:'Hopp Schwiiz',                       p:'#FF0000', s:'#C8941A' },
   { iso:'TR', name:'Türkiye',                slogan:'Haydi Türkiye',                      p:'#E30A17', s:'#C8941A' },
-  // CAF
   { iso:'DZ', name:'Algeria',                slogan:'ديما الخضرا',                        p:'#006233', s:'#D21034' },
   { iso:'ZA', name:'South Africa',           slogan:'Bafana Bafana',                      p:'#007A4D', s:'#FFB81C' },
   { iso:'CV', name:'Cape Verde',             slogan:'Força Cabo Verde',                   p:'#003893', s:'#CF2027' },
@@ -66,7 +78,6 @@ const COUNTRIES = [
   { iso:'CD', name:'DR Congo',               slogan:'Allez les Léopards',                 p:'#007FFF', s:'#CE1126' },
   { iso:'SN', name:'Senegal',                slogan:'Allez Sénégal',                      p:'#00853F', s:'#FDEF42' },
   { iso:'TN', name:'Tunisia',                slogan:'يلا تونس',                           p:'#E70013', s:'#C8941A' },
-  // AFC
   { iso:'JP', name:'Japan',                  slogan:'日本、行こう',                         p:'#BC002D', s:'#000000' },
   { iso:'IR', name:'Iran',                   slogan:'ایران، ایران',                        p:'#239F40', s:'#DA0000' },
   { iso:'UZ', name:'Uzbekistan',             slogan:'Olgʻa, Oʻzbekiston',                 p:'#009AD6', s:'#1EB53A' },
@@ -75,38 +86,28 @@ const COUNTRIES = [
   { iso:'AU', name:'Australia',              slogan:'Aussie Aussie Aussie, Oi Oi Oi',     p:'#00843D', s:'#FFD100' },
   { iso:'SA', name:'Saudi Arabia',           slogan:'يلا السعودية',                       p:'#006C35', s:'#C8941A' },
   { iso:'QA', name:'Qatar',                  slogan:'يلا قطر',                            p:'#8D1B3D', s:'#C8941A' },
-  // Playoffs
   { iso:'IQ', name:'Iraq',                   slogan:'يلا العراق',                         p:'#CE1126', s:'#007A3D' },
-  // OFC
   { iso:'NZ', name:'New Zealand',            slogan:'Go New Zealand',                     p:'#00247D', s:'#CC142B' },
 ];
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 function escXML(str) {
   return str
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
 function isRTL(str) {
   return /[؀-ۿݐ-ݿࢠ-ࣿﭐ-﷿ﹰ-﻿]/.test(str);
 }
 
-/**
- * Réduit la taille de police si le texte dépasse maxWidth.
- * charRatio ≈ rapport largeur-caractère / taille-police.
- */
+// Réduit la taille de police si le texte estimé dépasse maxWidth
 function adaptFontSize(text, maxWidth, baseSize, charRatio = 0.5) {
   const natural = text.length * baseSize * charRatio;
   return natural > maxWidth ? Math.floor(maxWidth / (text.length * charRatio)) : baseSize;
 }
 
-/**
- * Coupe le texte en 2 lignes au meilleur point de rupture (espace ou virgule)
- * le plus proche du milieu.
- */
+// Coupe en 2 lignes au meilleur point de rupture (espace ou virgule près du milieu)
 function splitAtBestBreak(text) {
   const mid = Math.floor(text.length / 2);
   let bestIdx = -1, bestDist = Infinity;
@@ -120,29 +121,32 @@ function splitAtBestBreak(text) {
   return [text.slice(0, bestIdx + 1).trim(), text.slice(bestIdx + 1).trim()];
 }
 
-// ── SVG : DOS du polo ─────────────────────────────────────────────────────
+// ── SVG : DOS ─────────────────────────────────────────────────────────────
 // 3600 × 4800 px (12" × 16" @ 300 dpi) — fond transparent
 //
-// Layout vertical :
-//   0..310     bande primaire haute  + "WORLD CUP 2026"
-//   310..352   accent secondaire (42 px)
-//   ~1280      nom du pays (Aladin, hero, secondary fill / primary stroke)
-//   ~1340      ligne décorative secondaire
-//   ~2060      slogan en arc (textPath) ou 2 lignes droites si trop long
-//   4448..4490 accent secondaire bas
-//   4490..4800 bande primaire basse
+// Layout conforme au produit BA de référence :
+//   - Nom du pays  : Aladin ~260px, ARC vers le haut, fill=p, stroke=s
+//   - Slogan       : Caveat Brush ~520px adaptatif, DROIT, fill=s, stroke=p
+//   - Pas de bandes/décorations — texte pur sur fond blanc
 function backSVG({ name, slogan, p, s }) {
-  const W = 3600, H = 4800;
-  const USABLE = 3300; // largeur utile (padding 150 de chaque côté)
+  const W = 3600;
+  const USABLE = 3100; // largeur utile (marge 250 de chaque côté)
 
-  // ── Nom du pays ────────────────────────────────────────────────────────
-  const nameSize = adaptFontSize(name, USABLE, 500, 0.44);
-  const nameY    = 1280;
+  // ── Nom du pays (arc) ────────────────────────────────────────────────────
+  // Aladin, ratio caractère ≈ 0.44
+  // Base 260px — tous les noms tiennent dans l'arc (aucun ne dépasse 22 chars)
+  const nameSize = adaptFontSize(name, USABLE, 260, 0.44);
 
-  // ── Slogan ─────────────────────────────────────────────────────────────
-  const MAX_SLOGAN = 590;
-  const MIN_SINGLE = 260; // en dessous on préfère 2 lignes
-  const rtl        = isRTL(slogan) ? 'direction="rtl" unicode-bidi="embed"' : '';
+  // Arc SVG : courbe douce vers le haut (+80px au centre)
+  // Endpoints y=620, contrôle y=540  → arc "sourire"
+  const arcY = 620;
+  const arcPeak = 540;
+
+  // ── Slogan (droit) ────────────────────────────────────────────────────────
+  // Caveat Brush, ratio ≈ 0.48
+  const MAX_SLOGAN  = 520;
+  const MIN_SINGLE  = 240; // < 240px → 2 lignes
+  const rtl = isRTL(slogan) ? 'direction="rtl" unicode-bidi="embed"' : '';
 
   let sloganLines = [slogan];
   let sloganSize  = adaptFontSize(slogan, USABLE, MAX_SLOGAN, 0.48);
@@ -151,40 +155,32 @@ function backSVG({ name, slogan, p, s }) {
     sloganSize  = adaptFontSize(sloganLines[0], USABLE, MAX_SLOGAN, 0.48);
   }
 
-  // ── Rendu slogan ───────────────────────────────────────────────────────
-  const ARC_BASE = 2060;
-  const ARC_PEAK = ARC_BASE - 95; // courbure vers le haut
+  // Baseline slogan : juste sous la fin de l'arc + gap confortable
+  const GAP       = 110;
+  const slogan1Y  = arcY + GAP + sloganSize;
+  const slogan2Y  = slogan1Y + Math.round(sloganSize * 1.15);
 
   let sloganSVG;
   if (sloganLines.length === 1) {
-    // Slogan en arc (effet jersey authentique)
     sloganSVG = `
-  <defs>
-    <path id="sloganArc"
-          d="M 150,${ARC_BASE} Q 1800,${ARC_PEAK} 3450,${ARC_BASE}"/>
-  </defs>
-  <text font-family="'Caveat Brush', cursive" font-size="${sloganSize}"
-        fill="${p}" paint-order="stroke" stroke="${s}" stroke-width="20" ${rtl}>
-    <textPath href="#sloganArc" xlink:href="#sloganArc"
-              startOffset="50%" text-anchor="middle">
-      ${escXML(slogan)}
-    </textPath>
+  <text x="${W / 2}" y="${slogan1Y}"
+        font-family="'Caveat Brush', cursive" font-size="${sloganSize}"
+        fill="${s}" text-anchor="middle"
+        paint-order="stroke" stroke="${p}" stroke-width="22" ${rtl}>
+    ${escXML(slogan)}
   </text>`;
   } else {
-    // 2 lignes droites (slogans très longs, ex. Australie)
-    const line1Y = ARC_BASE - Math.round(sloganSize * 0.6);
-    const line2Y = line1Y + Math.round(sloganSize * 1.15);
     sloganSVG = `
-  <text x="1800" y="${line1Y}"
+  <text x="${W / 2}" y="${slogan1Y}"
         font-family="'Caveat Brush', cursive" font-size="${sloganSize}"
-        fill="${p}" text-anchor="middle"
-        paint-order="stroke" stroke="${s}" stroke-width="18" ${rtl}>
+        fill="${s}" text-anchor="middle"
+        paint-order="stroke" stroke="${p}" stroke-width="20" ${rtl}>
     ${escXML(sloganLines[0])}
   </text>
-  <text x="1800" y="${line2Y}"
+  <text x="${W / 2}" y="${slogan2Y}"
         font-family="'Caveat Brush', cursive" font-size="${sloganSize}"
-        fill="${p}" text-anchor="middle"
-        paint-order="stroke" stroke="${s}" stroke-width="18" ${rtl}>
+        fill="${s}" text-anchor="middle"
+        paint-order="stroke" stroke="${p}" stroke-width="20" ${rtl}>
     ${escXML(sloganLines[1])}
   </text>`;
   }
@@ -192,44 +188,33 @@ function backSVG({ name, slogan, p, s }) {
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg"
      xmlns:xlink="http://www.w3.org/1999/xlink"
-     width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
+     width="${W}" height="4800" viewBox="0 0 ${W} 4800">
   <defs>
     <style>
       @import url('https://fonts.googleapis.com/css2?family=Aladin&amp;family=Caveat+Brush&amp;display=swap');
     </style>
+    <!-- Arc pour le nom du pays : courbe douce vers le haut -->
+    <path id="nameArc"
+          d="M 250,${arcY} Q 1800,${arcPeak} 3350,${arcY}"/>
   </defs>
 
-  <!-- Bande supérieure primaire -->
-  <rect x="0" y="0" width="${W}" height="310" fill="${p}"/>
-  <text x="${W / 2}" y="212"
-        font-family="'Aladin', serif" font-size="142"
-        fill="${s}" text-anchor="middle"
-        paint-order="stroke" stroke="${p}" stroke-width="8">WORLD CUP 2026</text>
-  <!-- Accent secondaire -->
-  <rect x="0" y="310" width="${W}" height="42" fill="${s}"/>
-
-  <!-- Nom du pays — texte hero -->
-  <text x="${W / 2}" y="${nameY}"
-        font-family="'Aladin', serif" font-size="${nameSize}"
-        fill="${s}" text-anchor="middle"
-        paint-order="stroke" stroke="${p}" stroke-width="28">
-    ${escXML(name)}
+  <!-- Nom du pays — arc, fill=primaire, stroke=secondaire (conforme BA) -->
+  <text font-family="'Aladin', serif" font-size="${nameSize}"
+        fill="${p}" paint-order="stroke" stroke="${s}" stroke-width="16">
+    <textPath href="#nameArc" xlink:href="#nameArc"
+              startOffset="50%" text-anchor="middle">
+      ${escXML(name)}
+    </textPath>
   </text>
 
-  <!-- Ligne décorative sous le nom -->
-  <rect x="600" y="${nameY + 42}" width="2400" height="14" fill="${s}" rx="7"/>
-
-  <!-- Slogan -->
+  <!-- Slogan — droit, fill=secondaire, stroke=primaire (conforme BA) -->
   ${sloganSVG}
-
-  <!-- Bande inférieure -->
-  <rect x="0" y="${H - 352}" width="${W}" height="42" fill="${s}"/>
-  <rect x="0" y="${H - 310}" width="${W}" height="310" fill="${p}"/>
 </svg>`;
 }
 
-// ── SVG : MANCHE DROITE — WORLD / 2026 / CUP ────────────────────────────
+// ── SVG : MANCHE DROITE — WORLD / 2026 / CUP ─────────────────────────────
 // 510 × 630 px (1.7" × 2.1" @ 300 dpi)
+// Conforme BA : WORLD+CUP fill=secondaire, 2026 fill=primaire, pas de bandes
 function sleeveRightSVG({ p, s }) {
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="510" height="630" viewBox="0 0 510 630">
@@ -239,60 +224,82 @@ function sleeveRightSVG({ p, s }) {
     </style>
   </defs>
 
-  <!-- Accent haut -->
-  <rect x="0" y="0"  width="510" height="28" fill="${p}"/>
-  <rect x="0" y="28" width="510" height="9"  fill="${s}"/>
-
-  <text x="255" y="130"
-        font-family="'Aladin','serif'" font-size="92"
+  <!-- WORLD — petit, fill=secondaire -->
+  <text x="255" y="118"
+        font-family="'Aladin','serif'" font-size="88"
         fill="${s}" text-anchor="middle"
         paint-order="stroke" stroke="${p}" stroke-width="6">WORLD</text>
 
-  <text x="255" y="348"
-        font-family="'Caveat Brush','cursive'" font-size="210"
+  <!-- 2026 — grand, fill=primaire -->
+  <text x="255" y="340"
+        font-family="'Caveat Brush','cursive'" font-size="205"
         fill="${p}" text-anchor="middle"
         paint-order="stroke" stroke="${s}" stroke-width="9">2026</text>
 
-  <text x="255" y="500"
-        font-family="'Aladin','serif'" font-size="92"
+  <!-- CUP — petit, fill=secondaire -->
+  <text x="255" y="480"
+        font-family="'Aladin','serif'" font-size="88"
         fill="${s}" text-anchor="middle"
         paint-order="stroke" stroke="${p}" stroke-width="6">CUP</text>
-
-  <!-- Accent bas -->
-  <rect x="0" y="593" width="510" height="9"  fill="${s}"/>
-  <rect x="0" y="602" width="510" height="28" fill="${p}"/>
 </svg>`;
 }
 
-// ── SVG : MANCHE GAUCHE — MUNDIAL 26 ─────────────────────────────────────
+// ── SVG : MANCHE GAUCHE — Ballon de volleyball ────────────────────────────
 // 510 × 630 px (1.7" × 2.1" @ 300 dpi)
-// Design symétrique à la manche droite (même famille typo, même logique couleurs)
+// Conforme BA : cercle + 3 coutures courbes, double trait (s=ext, p=int)
+// Fond blanc, pas de texte
 function sleeveLeftSVG({ p, s }) {
+  // Ballon centré : cx=255, cy=285, r=180
+  // Les extrémités des coutures sont sur le cercle (distance r du centre)
+  const cx = 255, cy = 285, r = 180;
+
+  // Points cardinaux sur le cercle :
+  // Gauche   : (75, 285)      θ=180°
+  // Droite   : (435, 285)     θ=0°
+  // Haut-gauche: ≈(165, 129)  θ=≈-130°  (cx+r·cos(130°), cy+r·sin(-40°))
+  // Bas-gauche : ≈(165, 441)  θ=≈130°
+  // Haut-droit : ≈(345, 129)  θ=≈-50°
+  // Bas-droit  : ≈(345, 441)  θ=≈50°
+
+  // Trait épais = secondaire (extérieur), trait fin = primaire (intérieur)
+  const SW_OUTER = 14;
+  const SW_INNER = 7;
+
+  const seam = (d) => `
+    <path d="${d}" fill="none" stroke="${s}" stroke-width="${SW_OUTER}" stroke-linecap="round"/>
+    <path d="${d}" fill="none" stroke="${p}" stroke-width="${SW_INNER}" stroke-linecap="round"/>`;
+
+  // Couture 1 : horizontale ondulée (gauche → droite, S-courbe en passant par le centre)
+  const seam1 = seam(`M 75,285 C 135,210 180,225 255,285 C 330,345 375,360 435,285`);
+
+  // Couture 2 : diagonale gauche (haut-gauche → bas-gauche, passe par la gauche du centre)
+  const seam2 = seam(`M 165,129 C 95,170 77,225 76,285 C 77,345 95,400 165,441`);
+
+  // Couture 3 : diagonale droite (haut-droit → bas-droit, passe par la droite du centre)
+  const seam3 = seam(`M 345,129 C 415,170 433,225 434,285 C 433,345 415,400 345,441`);
+
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="510" height="630" viewBox="0 0 510 630">
   <defs>
-    <style>
-      @import url('https://fonts.googleapis.com/css2?family=Aladin&amp;family=Caveat+Brush&amp;display=swap');
-    </style>
+    <!-- Clip : les coutures restent à l'intérieur du ballon -->
+    <clipPath id="ballClip">
+      <circle cx="${cx}" cy="${cy}" r="${r}"/>
+    </clipPath>
   </defs>
 
-  <!-- Accent haut -->
-  <rect x="0" y="0"  width="510" height="28" fill="${p}"/>
-  <rect x="0" y="28" width="510" height="9"  fill="${s}"/>
+  <!-- Surface blanche du ballon -->
+  <circle cx="${cx}" cy="${cy}" r="${r}" fill="white"/>
 
-  <text x="255" y="135"
-        font-family="'Aladin','serif'" font-size="88"
-        fill="${s}" text-anchor="middle"
-        paint-order="stroke" stroke="${p}" stroke-width="6">MUNDIAL</text>
+  <!-- Coutures intérieures (clippées) -->
+  <g clip-path="url(#ballClip)">
+    ${seam1}
+    ${seam2}
+    ${seam3}
+  </g>
 
-  <text x="255" y="440"
-        font-family="'Caveat Brush','cursive'" font-size="330"
-        fill="${p}" text-anchor="middle"
-        paint-order="stroke" stroke="${s}" stroke-width="14">26</text>
-
-  <!-- Accent bas -->
-  <rect x="0" y="593" width="510" height="9"  fill="${s}"/>
-  <rect x="0" y="602" width="510" height="28" fill="${p}"/>
+  <!-- Contour du ballon — double trait (s ext, p int) -->
+  <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${s}" stroke-width="16"/>
+  <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${p}" stroke-width="8"/>
 </svg>`;
 }
 
@@ -320,7 +327,6 @@ async function uploadSVG(svgContent, publicId) {
   const data = await resp.json();
   if (!resp.ok) throw new Error(JSON.stringify(data));
 
-  // URL de livraison PNG (Cloudinary rasterise le SVG à la volée)
   return data.secure_url.replace(/\/upload\//, '/upload/f_png,q_100/');
 }
 
@@ -328,8 +334,7 @@ async function uploadSVG(svgContent, publicId) {
 async function main() {
   let existing = {};
   try {
-    const raw = await fs.readFile(URLS_FILE, 'utf8');
-    existing = JSON.parse(raw);
+    existing = JSON.parse(await fs.readFile(URLS_FILE, 'utf8'));
   } catch {}
 
   const toProcess = TEST
@@ -341,11 +346,8 @@ async function main() {
 
   for (const country of toProcess) {
     const already = existing[country.iso] || {};
-    if (
-      SKIP_EXISTING &&
-      already.back && already.sleeveRight && already.sleeveLeft
-    ) {
-      console.log(`  ${country.iso} — skipped (déjà uploadé)`);
+    if (SKIP_EXISTING && already.back && already.sleeveRight && already.sleeveLeft) {
+      console.log(`  ${country.iso} — skipped`);
       continue;
     }
 
@@ -356,16 +358,11 @@ async function main() {
         uploadSVG(sleeveRightSVG(country), `mondial26/sleeve_right/${country.iso}`),
         uploadSVG(sleeveLeftSVG(country),  `mondial26/sleeve_left/${country.iso}`),
       ]);
-      results[country.iso] = {
-        back:        backUrl,
-        sleeveRight: sleeveRightUrl,
-        sleeveLeft:  sleeveLeftUrl,
-      };
+      results[country.iso] = { back: backUrl, sleeveRight: sleeveRightUrl, sleeveLeft: sleeveLeftUrl };
       console.log('✅');
     } catch (err) {
       console.log(`❌ ${err.message.slice(0, 120)}`);
     }
-
     await new Promise(r => setTimeout(r, 350));
   }
 
