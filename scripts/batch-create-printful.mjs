@@ -10,7 +10,7 @@
  */
 
 const API_KEY   = 'L9Hrq6urY7mRUBRDMGl9qPoR3YwuTTBU3iZ4XSaA';
-const STORE_ID  = '17960587';
+const STORE_ID  = '17960587';   // store ID visible dans l'URL Printful dashboard
 const GITHUB    = 'https://raw.githubusercontent.com/Maruuch/MONDIAL26/main';
 
 const args = process.argv.slice(2);
@@ -89,7 +89,24 @@ const COUNTRIES = [
   { iso:'NZ', name:'New Zealand',            slogan:'Go New Zealand',                     p:'#00247D', s:'#CC142B' },
 ];
 
-// ── Construit le payload Printful pour un pays ────────────────────────────
+// ── Payload API v1 (fallback) ─────────────────────────────────────────────
+// v1 n'a pas de textbox — le dos doit être un fichier image pré-généré
+// Pour l'instant on ne met que l'emblème + laisse le dos vide (à compléter)
+function buildPayloadV1(country) {
+  const emblemUrl = `${GITHUB}/teams/${country.iso}/emblem/emblem_${country.iso}.png`;
+  return {
+    sync_product: { name: `Premium pique polo shirt ${country.iso}` },
+    sync_variants: VARIANTS.map(v => ({
+      variant_id:   v.id,
+      retail_price: v.price,
+      files: [
+        { placement: 'chest_left_dtf', url: emblemUrl, type: 'default' },
+      ],
+    })),
+  };
+}
+
+// ── Construit le payload Printful v2 pour un pays ─────────────────────────
 function buildPayload(country) {
   const emblemUrl = `${GITHUB}/teams/${country.iso}/emblem/emblem_${country.iso}.png`;
   const { name, slogan, p: primary, s: secondary, iso } = country;
@@ -159,17 +176,30 @@ async function createProduct(country) {
     return { ok: true, dry: true };
   }
 
-  const resp = await fetch(
-    `https://api.printful.com/v2/sync-products?store_id=${STORE_ID}`,
-    {
+  // Essai 1 : API v2 avec header X-PF-Store-Id
+  let resp = await fetch('https://api.printful.com/v2/sync-products', {
+    method:  'POST',
+    headers: {
+      'Authorization':  `Bearer ${API_KEY}`,
+      'Content-Type':   'application/json',
+      'X-PF-Store-Id':  STORE_ID,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  // Essai 2 : API v1 si v2 renvoie 404
+  if (resp.status === 404) {
+    const v1Payload = buildPayloadV1(country);
+    resp = await fetch('https://api.printful.com/store/products', {
       method:  'POST',
       headers: {
         'Authorization': `Bearer ${API_KEY}`,
         'Content-Type':  'application/json',
+        'X-PF-Store-Id': STORE_ID,
       },
-      body: JSON.stringify(payload),
-    }
-  );
+      body: JSON.stringify(v1Payload),
+    });
+  }
 
   const data = await resp.json();
   if (!resp.ok) throw new Error(`HTTP ${resp.status}: ${JSON.stringify(data)}`);
