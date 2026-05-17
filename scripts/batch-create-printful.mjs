@@ -246,8 +246,11 @@ async function createProduct(country) {
     body: JSON.stringify(payload),
   });
 
-  // Essai 2 : API v1 si v2 échoue (404 = endpoint absent, 4xx = payload rejeté)
+  // Essai 2 : API v1 si v2 échoue
   if (!resp.ok) {
+    const v2Body = await resp.text().catch(() => '');
+    console.error(`\n  [v2 fail ${resp.status}] ${v2Body.slice(0, 300)}`);
+
     const v1Payload = buildPayloadV1(country);
     resp = await fetch('https://api.printful.com/store/products', {
       method:  'POST',
