@@ -183,12 +183,8 @@ function buildPayload(country) {
           },
         ],
       },
-      // Manche gauche — volleyball clipart (même pour tous les pays)
-      {
-        placement: 'short_sleeve_left_dtf',
-        technique:  'dtfilm',
-        layers: [{ type: 'file', id: SLEEVE_LEFT_FILE_ID }],
-      },
+      // Manche gauche — sera fournie via Cloudinary URL dans v1 (v2 toujours KO)
+      // Omis ici car buildPayload n'est jamais utilisé (v2 retourne 400 systématiquement)
       // Manche droite — WORLD / 2026 / CUP aux couleurs du pays
       {
         placement: 'short_sleeve_right_dtf',
