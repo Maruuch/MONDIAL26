@@ -9,9 +9,22 @@
  *   node scripts/batch-create-printful.mjs --dry    # affiche les payloads sans créer
  */
 
+import fs from 'fs/promises';
+import path from 'path';
+
 const API_KEY   = 'L9Hrq6urY7mRUBRDMGl9qPoR3YwuTTBU3iZ4XSaA';
-const STORE_ID  = '17987622';   // PRINTFUL_STORE_ID du .env.local (Shopify-linked store)
+const STORE_ID  = '17987622';   // MONDIAL26-API (Manual Order / API store)
 const GITHUB    = 'https://raw.githubusercontent.com/Maruuch/MONDIAL26/main';
+
+// ── Charger les URLs Cloudinary générées par generate-designs.mjs ─────────
+const URLS_FILE = path.join('scripts', 'design-urls.json');
+let DESIGN_URLS = {};
+try {
+  DESIGN_URLS = JSON.parse(await fs.readFile(URLS_FILE, 'utf8'));
+  console.log(`  ✅ design-urls.json chargé (${Object.keys(DESIGN_URLS).length} pays)`);
+} catch {
+  console.warn(`  ⚠️  design-urls.json introuvable — lance d'abord : node scripts/generate-designs.mjs`);
+}
 
 const args = process.argv.slice(2);
 const TEST  = args.includes('--test');
@@ -89,26 +102,33 @@ const COUNTRIES = [
   { iso:'NZ', name:'New Zealand',            slogan:'Go New Zealand',                     p:'#00247D', s:'#CC142B' },
 ];
 
-// ── Payload API v1 (fallback) ─────────────────────────────────────────────
-// v1 : type = nom du placement, supporte id (fichier existant) ou url
-// Manches : réutilise les fichiers du produit BA (id fixe, même design)
-//   left sleeve  fileId 989546368 = clipart volleyball
-//   right sleeve fileId 989546367 = WORLD/2026/CUP (couleurs BA par défaut)
-const SLEEVE_LEFT_FILE_ID  = 989546368;
-const SLEEVE_RIGHT_FILE_ID = 989546367;
+// ── Payload API v1 (utilisé en production) ───────────────────────────────
+// v1 : champ "type" = nom du placement ; supporte "id" (fichier existant) ou "url"
+// Manche gauche : clipart volleyball commun (fileId Printful fixe)
+// Back + manche droite : URLs Cloudinary générées par generate-designs.mjs
+const SLEEVE_LEFT_FILE_ID = 989546368; // clipart volleyball (même pour tous les pays)
 
 function buildPayloadV1(country) {
   const emblemUrl = `${GITHUB}/teams/${country.iso}/emblem/emblem_${country.iso}.png`;
+  const designs   = DESIGN_URLS[country.iso] || {};
+
+  const files = [
+    // Poitrine gauche — emblème du pays
+    { type: 'chest_left_dtf',         url: emblemUrl },
+    // Dos — nom du pays + slogan aux couleurs du pays (Cloudinary PNG)
+    ...(designs.back   ? [{ type: 'back_dtf',               url: designs.back   }] : []),
+    // Manche gauche — volleyball clipart commun
+    { type: 'short_sleeve_left_dtf',  id:  SLEEVE_LEFT_FILE_ID },
+    // Manche droite — WORLD/2026/CUP aux couleurs du pays (Cloudinary PNG)
+    ...(designs.sleeve ? [{ type: 'short_sleeve_right_dtf',  url: designs.sleeve }] : []),
+  ];
+
   return {
     sync_product: { name: `Premium pique polo shirt ${country.iso}` },
     sync_variants: VARIANTS.map(v => ({
       variant_id:   v.id,
       retail_price: v.price,
-      files: [
-        { type: 'chest_left_dtf',       url: emblemUrl },
-        { type: 'short_sleeve_left_dtf', id: SLEEVE_LEFT_FILE_ID  },
-        { type: 'short_sleeve_right_dtf',id: SLEEVE_RIGHT_FILE_ID },
-      ],
+      files,
     })),
   };
 }
