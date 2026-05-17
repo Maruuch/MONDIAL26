@@ -103,24 +103,21 @@ const COUNTRIES = [
 ];
 
 // ── Payload API v1 (utilisé en production) ───────────────────────────────
-// v1 : champ "type" = nom du placement ; supporte "id" (fichier existant) ou "url"
-// Manche gauche : clipart volleyball commun (fileId Printful fixe)
-// Back + manche droite : URLs Cloudinary générées par generate-designs.mjs
-const SLEEVE_LEFT_FILE_ID = 989546368; // clipart volleyball (même pour tous les pays)
-
+// Toutes les URLs viennent de Cloudinary (generate-designs.mjs).
+// Aucun fileId hardcodé — chaque pays a ses propres designs aux bonnes couleurs.
 function buildPayloadV1(country) {
   const emblemUrl = `${GITHUB}/teams/${country.iso}/emblem/emblem_${country.iso}.png`;
   const designs   = DESIGN_URLS[country.iso] || {};
 
   const files = [
-    // Poitrine gauche — emblème du pays
-    { type: 'chest_left_dtf',         url: emblemUrl },
-    // Dos — nom du pays + slogan aux couleurs du pays (Cloudinary PNG)
-    ...(designs.back   ? [{ type: 'back_dtf',               url: designs.back   }] : []),
-    // Manche gauche — volleyball clipart commun
-    { type: 'short_sleeve_left_dtf',  id:  SLEEVE_LEFT_FILE_ID },
+    // Poitrine gauche — emblème du pays (GitHub)
+    { type: 'chest_left_dtf',          url: emblemUrl },
+    // Dos — nom + slogan aux couleurs du pays (Cloudinary PNG)
+    ...(designs.back        ? [{ type: 'back_dtf',               url: designs.back        }] : []),
+    // Manche gauche — MUNDIAL 26 aux couleurs du pays (Cloudinary PNG)
+    ...(designs.sleeveLeft  ? [{ type: 'short_sleeve_left_dtf',  url: designs.sleeveLeft  }] : []),
     // Manche droite — WORLD/2026/CUP aux couleurs du pays (Cloudinary PNG)
-    ...(designs.sleeve ? [{ type: 'short_sleeve_right_dtf',  url: designs.sleeve }] : []),
+    ...(designs.sleeveRight ? [{ type: 'short_sleeve_right_dtf', url: designs.sleeveRight }] : []),
   ];
 
   return {

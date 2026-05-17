@@ -1,27 +1,26 @@
 /**
  * generate-designs.mjs
- * Génère les SVG dos + manche droite pour chaque pays et les upload sur Cloudinary.
- * À exécuter UNE FOIS avant le batch Printful.
+ * Génère les SVG back + sleeve_right + sleeve_left pour chaque pays
+ * et les uploade sur Cloudinary.
  *
  * Usage:
- *   node scripts/generate-designs.mjs          # tous les pays
- *   node scripts/generate-designs.mjs --test   # France seulement
- *   node scripts/generate-designs.mjs --skip-existing  # ne réupload pas si URL déjà dans le JSON
+ *   node scripts/generate-designs.mjs                # tous les pays
+ *   node scripts/generate-designs.mjs --test         # France seulement
+ *   node scripts/generate-designs.mjs --skip-existing
  */
 
-import crypto  from 'crypto';
-import fs      from 'fs/promises';
-import path    from 'path';
+import crypto from 'crypto';
+import fs     from 'fs/promises';
+import path   from 'path';
 
-// ── Cloudinary credentials (du .env.local) ────────────────────────────────
 const CLOUD_NAME = 'dwkwgeift';
 const CLD_KEY    = '989425694846972';
 const CLD_SECRET = 'hkgSe4zikhZNWeDcUtc5vqHqqCU';
 
-const args           = process.argv.slice(2);
-const TEST           = args.includes('--test');
-const SKIP_EXISTING  = args.includes('--skip-existing');
-const URLS_FILE      = path.join('scripts', 'design-urls.json');
+const args          = process.argv.slice(2);
+const TEST          = args.includes('--test');
+const SKIP_EXISTING = args.includes('--skip-existing');
+const URLS_FILE     = path.join('scripts', 'design-urls.json');
 
 // ── Pays (identique au batch script) ─────────────────────────────────────
 const COUNTRIES = [
@@ -84,56 +83,154 @@ const COUNTRIES = [
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 function escXML(str) {
-  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 }
 
 function isRTL(str) {
   return /[؀-ۿݐ-ݿࢠ-ࣿﭐ-﷿ﹰ-﻿]/.test(str);
 }
 
-// strip # from hex
-const hex = c => c.replace('#','');
+/**
+ * Réduit la taille de police si le texte dépasse maxWidth.
+ * charRatio ≈ rapport largeur-caractère / taille-police.
+ */
+function adaptFontSize(text, maxWidth, baseSize, charRatio = 0.5) {
+  const natural = text.length * baseSize * charRatio;
+  return natural > maxWidth ? Math.floor(maxWidth / (text.length * charRatio)) : baseSize;
+}
 
-// ── SVG : face arrière ────────────────────────────────────────────────────
-// 3600 × 4800 px (12" × 16" @ 300dpi) — fond transparent
+/**
+ * Coupe le texte en 2 lignes au meilleur point de rupture (espace ou virgule)
+ * le plus proche du milieu.
+ */
+function splitAtBestBreak(text) {
+  const mid = Math.floor(text.length / 2);
+  let bestIdx = -1, bestDist = Infinity;
+  for (let i = 0; i < text.length; i++) {
+    if (text[i] === ' ' || text[i] === ',') {
+      const dist = Math.abs(i - mid);
+      if (dist < bestDist) { bestDist = dist; bestIdx = i; }
+    }
+  }
+  if (bestIdx === -1) return [text];
+  return [text.slice(0, bestIdx + 1).trim(), text.slice(bestIdx + 1).trim()];
+}
+
+// ── SVG : DOS du polo ─────────────────────────────────────────────────────
+// 3600 × 4800 px (12" × 16" @ 300 dpi) — fond transparent
+//
+// Layout vertical :
+//   0..310     bande primaire haute  + "WORLD CUP 2026"
+//   310..352   accent secondaire (42 px)
+//   ~1280      nom du pays (Aladin, hero, secondary fill / primary stroke)
+//   ~1340      ligne décorative secondaire
+//   ~2060      slogan en arc (textPath) ou 2 lignes droites si trop long
+//   4448..4490 accent secondaire bas
+//   4490..4800 bande primaire basse
 function backSVG({ name, slogan, p, s }) {
-  const rtlSlogan = isRTL(slogan) ? 'direction="rtl" unicode-bidi="embed"' : '';
+  const W = 3600, H = 4800;
+  const USABLE = 3300; // largeur utile (padding 150 de chaque côté)
+
+  // ── Nom du pays ────────────────────────────────────────────────────────
+  const nameSize = adaptFontSize(name, USABLE, 500, 0.44);
+  const nameY    = 1280;
+
+  // ── Slogan ─────────────────────────────────────────────────────────────
+  const MAX_SLOGAN = 590;
+  const MIN_SINGLE = 260; // en dessous on préfère 2 lignes
+  const rtl        = isRTL(slogan) ? 'direction="rtl" unicode-bidi="embed"' : '';
+
+  let sloganLines = [slogan];
+  let sloganSize  = adaptFontSize(slogan, USABLE, MAX_SLOGAN, 0.48);
+  if (sloganSize < MIN_SINGLE) {
+    sloganLines = splitAtBestBreak(slogan);
+    sloganSize  = adaptFontSize(sloganLines[0], USABLE, MAX_SLOGAN, 0.48);
+  }
+
+  // ── Rendu slogan ───────────────────────────────────────────────────────
+  const ARC_BASE = 2060;
+  const ARC_PEAK = ARC_BASE - 95; // courbure vers le haut
+
+  let sloganSVG;
+  if (sloganLines.length === 1) {
+    // Slogan en arc (effet jersey authentique)
+    sloganSVG = `
+  <defs>
+    <path id="sloganArc"
+          d="M 150,${ARC_BASE} Q 1800,${ARC_PEAK} 3450,${ARC_BASE}"/>
+  </defs>
+  <text font-family="'Caveat Brush', cursive" font-size="${sloganSize}"
+        fill="${p}" paint-order="stroke" stroke="${s}" stroke-width="20" ${rtl}>
+    <textPath href="#sloganArc" xlink:href="#sloganArc"
+              startOffset="50%" text-anchor="middle">
+      ${escXML(slogan)}
+    </textPath>
+  </text>`;
+  } else {
+    // 2 lignes droites (slogans très longs, ex. Australie)
+    const line1Y = ARC_BASE - Math.round(sloganSize * 0.6);
+    const line2Y = line1Y + Math.round(sloganSize * 1.15);
+    sloganSVG = `
+  <text x="1800" y="${line1Y}"
+        font-family="'Caveat Brush', cursive" font-size="${sloganSize}"
+        fill="${p}" text-anchor="middle"
+        paint-order="stroke" stroke="${s}" stroke-width="18" ${rtl}>
+    ${escXML(sloganLines[0])}
+  </text>
+  <text x="1800" y="${line2Y}"
+        font-family="'Caveat Brush', cursive" font-size="${sloganSize}"
+        fill="${p}" text-anchor="middle"
+        paint-order="stroke" stroke="${s}" stroke-width="18" ${rtl}>
+    ${escXML(sloganLines[1])}
+  </text>`;
+  }
+
   return `<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="3600" height="4800" viewBox="0 0 3600 4800">
+<svg xmlns="http://www.w3.org/2000/svg"
+     xmlns:xlink="http://www.w3.org/1999/xlink"
+     width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
   <defs>
     <style>
       @import url('https://fonts.googleapis.com/css2?family=Aladin&amp;family=Caveat+Brush&amp;display=swap');
     </style>
   </defs>
-  <!-- Nom du pays — Aladin, couleur secondaire, stroke primaire -->
-  <text
-    x="1800" y="680"
-    font-family="'Aladin', serif"
-    font-size="310"
-    fill="${s}"
-    text-anchor="middle"
-    paint-order="stroke"
-    stroke="${p}"
-    stroke-width="22"
-  >${escXML(name)}</text>
-  <!-- Slogan — Caveat Brush, couleur primaire, stroke secondaire -->
-  <text
-    x="1800" y="1320"
-    font-family="'Caveat Brush', cursive"
-    font-size="560"
-    fill="${p}"
-    text-anchor="middle"
-    paint-order="stroke"
-    stroke="${s}"
-    stroke-width="18"
-    ${rtlSlogan}
-  >${escXML(slogan)}</text>
+
+  <!-- Bande supérieure primaire -->
+  <rect x="0" y="0" width="${W}" height="310" fill="${p}"/>
+  <text x="${W / 2}" y="212"
+        font-family="'Aladin', serif" font-size="142"
+        fill="${s}" text-anchor="middle"
+        paint-order="stroke" stroke="${p}" stroke-width="8">WORLD CUP 2026</text>
+  <!-- Accent secondaire -->
+  <rect x="0" y="310" width="${W}" height="42" fill="${s}"/>
+
+  <!-- Nom du pays — texte hero -->
+  <text x="${W / 2}" y="${nameY}"
+        font-family="'Aladin', serif" font-size="${nameSize}"
+        fill="${s}" text-anchor="middle"
+        paint-order="stroke" stroke="${p}" stroke-width="28">
+    ${escXML(name)}
+  </text>
+
+  <!-- Ligne décorative sous le nom -->
+  <rect x="600" y="${nameY + 42}" width="2400" height="14" fill="${s}" rx="7"/>
+
+  <!-- Slogan -->
+  ${sloganSVG}
+
+  <!-- Bande inférieure -->
+  <rect x="0" y="${H - 352}" width="${W}" height="42" fill="${s}"/>
+  <rect x="0" y="${H - 310}" width="${W}" height="310" fill="${p}"/>
 </svg>`;
 }
 
-// ── SVG : manche droite (WORLD / 2026 / CUP) ─────────────────────────────
-// 510 × 630 px (1.7" × 2.1" @ 300dpi) — fond transparent
-function sleeveSVG({ p, s }) {
+// ── SVG : MANCHE DROITE — WORLD / 2026 / CUP ────────────────────────────
+// 510 × 630 px (1.7" × 2.1" @ 300 dpi)
+function sleeveRightSVG({ p, s }) {
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="510" height="630" viewBox="0 0 510 630">
   <defs>
@@ -141,28 +238,79 @@ function sleeveSVG({ p, s }) {
       @import url('https://fonts.googleapis.com/css2?family=Aladin&amp;family=Caveat+Brush&amp;display=swap');
     </style>
   </defs>
-  <text x="255" y="95"  font-family="'Aladin','serif'" font-size="80"  fill="${s}" text-anchor="middle" paint-order="stroke" stroke="${p}" stroke-width="5">WORLD</text>
-  <text x="255" y="295" font-family="'Caveat Brush','cursive'" font-size="175" fill="${p}" text-anchor="middle" paint-order="stroke" stroke="${s}" stroke-width="6">2026</text>
-  <text x="255" y="420" font-family="'Aladin','serif'" font-size="80"  fill="${s}" text-anchor="middle" paint-order="stroke" stroke="${p}" stroke-width="5">CUP</text>
+
+  <!-- Accent haut -->
+  <rect x="0" y="0"  width="510" height="28" fill="${p}"/>
+  <rect x="0" y="28" width="510" height="9"  fill="${s}"/>
+
+  <text x="255" y="130"
+        font-family="'Aladin','serif'" font-size="92"
+        fill="${s}" text-anchor="middle"
+        paint-order="stroke" stroke="${p}" stroke-width="6">WORLD</text>
+
+  <text x="255" y="348"
+        font-family="'Caveat Brush','cursive'" font-size="210"
+        fill="${p}" text-anchor="middle"
+        paint-order="stroke" stroke="${s}" stroke-width="9">2026</text>
+
+  <text x="255" y="500"
+        font-family="'Aladin','serif'" font-size="92"
+        fill="${s}" text-anchor="middle"
+        paint-order="stroke" stroke="${p}" stroke-width="6">CUP</text>
+
+  <!-- Accent bas -->
+  <rect x="0" y="593" width="510" height="9"  fill="${s}"/>
+  <rect x="0" y="602" width="510" height="28" fill="${p}"/>
+</svg>`;
+}
+
+// ── SVG : MANCHE GAUCHE — MUNDIAL 26 ─────────────────────────────────────
+// 510 × 630 px (1.7" × 2.1" @ 300 dpi)
+// Design symétrique à la manche droite (même famille typo, même logique couleurs)
+function sleeveLeftSVG({ p, s }) {
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="510" height="630" viewBox="0 0 510 630">
+  <defs>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Aladin&amp;family=Caveat+Brush&amp;display=swap');
+    </style>
+  </defs>
+
+  <!-- Accent haut -->
+  <rect x="0" y="0"  width="510" height="28" fill="${p}"/>
+  <rect x="0" y="28" width="510" height="9"  fill="${s}"/>
+
+  <text x="255" y="135"
+        font-family="'Aladin','serif'" font-size="88"
+        fill="${s}" text-anchor="middle"
+        paint-order="stroke" stroke="${p}" stroke-width="6">MUNDIAL</text>
+
+  <text x="255" y="440"
+        font-family="'Caveat Brush','cursive'" font-size="330"
+        fill="${p}" text-anchor="middle"
+        paint-order="stroke" stroke="${s}" stroke-width="14">26</text>
+
+  <!-- Accent bas -->
+  <rect x="0" y="593" width="510" height="9"  fill="${s}"/>
+  <rect x="0" y="602" width="510" height="28" fill="${p}"/>
 </svg>`;
 }
 
 // ── Upload Cloudinary ─────────────────────────────────────────────────────
 async function uploadSVG(svgContent, publicId) {
-  const timestamp  = Math.round(Date.now() / 1000);
-  const sigString  = `public_id=${publicId}&timestamp=${timestamp}${CLD_SECRET}`;
-  const signature  = crypto.createHash('sha1').update(sigString).digest('hex');
+  const timestamp = Math.round(Date.now() / 1000);
+  const sigString = `public_id=${publicId}&timestamp=${timestamp}${CLD_SECRET}`;
+  const signature = crypto.createHash('sha1').update(sigString).digest('hex');
 
-  // SVG → base64 data URL
-  const b64 = Buffer.from(svgContent).toString('base64');
+  const b64     = Buffer.from(svgContent).toString('base64');
   const dataUrl = `data:image/svg+xml;base64,${b64}`;
 
   const body = new URLSearchParams({
-    file:       dataUrl,
-    api_key:    CLD_KEY,
-    timestamp:  String(timestamp),
+    file:      dataUrl,
+    api_key:   CLD_KEY,
+    timestamp: String(timestamp),
     signature,
-    public_id:  publicId,
+    public_id: publicId,
   });
 
   const resp = await fetch(
@@ -172,13 +320,12 @@ async function uploadSVG(svgContent, publicId) {
   const data = await resp.json();
   if (!resp.ok) throw new Error(JSON.stringify(data));
 
-  // Retourner l'URL PNG (Cloudinary convertit le SVG en PNG à la volée)
+  // URL de livraison PNG (Cloudinary rasterise le SVG à la volée)
   return data.secure_url.replace(/\/upload\//, '/upload/f_png,q_100/');
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────
 async function main() {
-  // Charger les URLs existantes si on veut skipper
   let existing = {};
   try {
     const raw = await fs.readFile(URLS_FILE, 'utf8');
@@ -193,22 +340,33 @@ async function main() {
   const results = { ...existing };
 
   for (const country of toProcess) {
-    if (SKIP_EXISTING && existing[country.iso]?.back && existing[country.iso]?.sleeve) {
+    const already = existing[country.iso] || {};
+    if (
+      SKIP_EXISTING &&
+      already.back && already.sleeveRight && already.sleeveLeft
+    ) {
       console.log(`  ${country.iso} — skipped (déjà uploadé)`);
       continue;
     }
+
     process.stdout.write(`  ${country.iso} — ${country.name}... `);
     try {
-      const [backUrl, sleeveUrl] = await Promise.all([
-        uploadSVG(backSVG(country),   `mondial26/back/${country.iso}`),
-        uploadSVG(sleeveSVG(country), `mondial26/sleeve_right/${country.iso}`),
+      const [backUrl, sleeveRightUrl, sleeveLeftUrl] = await Promise.all([
+        uploadSVG(backSVG(country),        `mondial26/back/${country.iso}`),
+        uploadSVG(sleeveRightSVG(country), `mondial26/sleeve_right/${country.iso}`),
+        uploadSVG(sleeveLeftSVG(country),  `mondial26/sleeve_left/${country.iso}`),
       ]);
-      results[country.iso] = { back: backUrl, sleeve: sleeveUrl };
+      results[country.iso] = {
+        back:        backUrl,
+        sleeveRight: sleeveRightUrl,
+        sleeveLeft:  sleeveLeftUrl,
+      };
       console.log('✅');
     } catch (err) {
-      console.log(`❌ ${err.message.slice(0,120)}`);
+      console.log(`❌ ${err.message.slice(0, 120)}`);
     }
-    await new Promise(r => setTimeout(r, 300));
+
+    await new Promise(r => setTimeout(r, 350));
   }
 
   await fs.writeFile(URLS_FILE, JSON.stringify(results, null, 2));
