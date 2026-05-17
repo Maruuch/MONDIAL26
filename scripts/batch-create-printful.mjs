@@ -10,7 +10,7 @@
  */
 
 const API_KEY   = 'L9Hrq6urY7mRUBRDMGl9qPoR3YwuTTBU3iZ4XSaA';
-const STORE_ID  = '17960587';   // store ID visible dans l'URL Printful dashboard
+const STORE_ID  = '17987622';   // PRINTFUL_STORE_ID du .env.local (Shopify-linked store)
 const GITHUB    = 'https://raw.githubusercontent.com/Maruuch/MONDIAL26/main';
 
 const args = process.argv.slice(2);
