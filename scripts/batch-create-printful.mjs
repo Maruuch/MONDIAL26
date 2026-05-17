@@ -121,6 +121,7 @@ function buildPayload(country) {
   const syncVariants = VARIANTS.map(v => ({
     catalog_variant_id: v.id,
     retail_price: v.price,
+    source: emblemUrl,   // champ requis par l'API v2
     placements: [
       // Face avant — emblème poitrine gauche
       {
