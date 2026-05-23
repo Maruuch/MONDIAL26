@@ -134,7 +134,8 @@ function backSVG({ name, slogan, p, s }) {
   // ── Nom du pays ──────────────────────────────────────────────────────────
   // charRatio Aladin mesuré : 2868/(22×375) = 0.347
   const nomSz     = adaptFontSize(name, 2868, 375, 0.347);
-  const nomStroke = Math.round(nomSz * 0.048);
+  // Poids contour mesuré sur BA = 0.20u × 300px/u = 60px (fixe, identique pour nom et slogan)
+  const nomStroke = 60;
 
   // Arc nom : centre x=1800, largeur 9.56u=2868px, lift=90px
   const NOM_XL   = CX - 1434;   // 366
@@ -151,7 +152,7 @@ function backSVG({ name, slogan, p, s }) {
     slogLines = splitAtBestBreak(slogan);
     slogSz    = adaptFontSize(slogLines[0], 3306, 600, 0.424);
   }
-  const slogStroke = Math.round(slogSz * 0.040);
+  const slogStroke = 60; // poids 0.20u × 300px/u = 60px (mesuré sur BA)
 
   // Arc slogan : largeur 11.02u=3306px, lift=131px
   const SLG_XL = CX - 1653;   // 147
