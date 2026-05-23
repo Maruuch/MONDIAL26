@@ -1,23 +1,21 @@
 /**
  * generate-designs.mjs
- * Génère les SVG back + sleeve_right + sleeve_left pour chaque pays
- * et les uploade sur Cloudinary.
+ * VALEURS EXTRAITES PIXEL PAR PIXEL du designer Printful (produit BA 433424285)
+ * Échelle : 1 Printful unit = 300 px SVG
  *
- * Référence visuelle : produit BA (433424285) dans le designer Printful.
+ * DOS (Imprimé arrière) :
+ *   Nom pays  → Aladin 1.25u=375px, courbure 20 (lift=90px),  fill=s, stroke=p
+ *   Slogan    → Caveat Brush 2.00u=600px, courbure 20 (lift=131px), fill=p, stroke=s
+ *   Dimensions: 3600×2400 px
  *
- * DOS — layout validé sur BA :
- *   • Nom du pays  : Aladin, ~260px, ARC (courbe vers le haut), fill=p, stroke=s
- *   • Slogan       : Caveat Brush, ~520px adaptatif, DROIT, fill=s, stroke=p
- *   • Pas de bandes couleur — design épuré sur fond blanc
+ * MANCHE DROITE :
+ *   WORLD/CUP → Open Sans Bold 0.30u=90px, courbure 2 (≈plat), fill=s, stroke=p
+ *   2026      → Dela Gothic One 0.43u=129px, courbure 46 (lift=103px), fill=p, stroke=s
+ *   Dimensions: 600×750 px
  *
- * MANCHE DROITE : WORLD/2026/CUP
- *   • WORLD, CUP   : Aladin small, fill=s, stroke=p
- *   • 2026         : Caveat Brush large, fill=p, stroke=s
- *   • Pas de bandes
- *
- * MANCHE GAUCHE : ballon de volleyball
- *   • Cercle + 3 coutures courbes, double trait (s=extérieur, p=intérieur)
- *   • Fond blanc, pas de texte
+ * MANCHE GAUCHE :
+ *   Ballon volleyball — cercle r=180 + 3 coutures double-trait (s ext / p int)
+ *   Dimensions: 510×630 px
  *
  * Usage:
  *   node scripts/generate-designs.mjs
@@ -98,16 +96,19 @@ function escXML(str) {
 }
 
 function isRTL(str) {
-  return /[؀-ۿݐ-ݿࢠ-ࣿﭐ-﷿ﹰ-﻿]/.test(str);
+  return /[؀-ۿݐ-ݿﭐ-﷿ﹰ-﻿]/.test(str);
 }
 
-// Réduit la taille de police si le texte estimé dépasse maxWidth
-function adaptFontSize(text, maxWidth, baseSize, charRatio = 0.5) {
-  const natural = text.length * baseSize * charRatio;
-  return natural > maxWidth ? Math.floor(maxWidth / (text.length * charRatio)) : baseSize;
+// Réduit la police si le texte estimé dépasse maxWidth
+// charRatio = largeur moyenne d'un caractère / taille de police
+function adaptFontSize(text, maxWidth, baseSize, charRatio) {
+  const estimated = text.length * baseSize * charRatio;
+  return estimated > maxWidth
+    ? Math.max(180, Math.floor(maxWidth / (text.length * charRatio)))
+    : baseSize;
 }
 
-// Coupe en 2 lignes au meilleur point de rupture (espace ou virgule près du milieu)
+// Coupe au meilleur point de rupture pour les slogans très longs
 function splitAtBestBreak(text) {
   const mid = Math.floor(text.length / 2);
   let bestIdx = -1, bestDist = Infinity;
@@ -117,187 +118,180 @@ function splitAtBestBreak(text) {
       if (dist < bestDist) { bestDist = dist; bestIdx = i; }
     }
   }
-  if (bestIdx === -1) return [text];
-  return [text.slice(0, bestIdx + 1).trim(), text.slice(bestIdx + 1).trim()];
+  return bestIdx === -1 ? [text] : [text.slice(0, bestIdx + 1).trim(), text.slice(bestIdx + 1).trim()];
 }
 
 // ── SVG : DOS ─────────────────────────────────────────────────────────────
-// 3600 × 4800 px (12" × 16" @ 300 dpi) — fond transparent
+// Canvas 3600×2400 px (12u × 8u @ 300 dpi)
 //
-// Layout conforme au produit BA de référence :
-//   - Nom du pays  : Aladin ~260px, ARC vers le haut, fill=p, stroke=s
-//   - Slogan       : Caveat Brush ~520px adaptatif, DROIT, fill=s, stroke=p
-//   - Pas de bandes/décorations — texte pur sur fond blanc
+// Valeurs mesurées sur BA :
+//   Nom pays  : Aladin 1.25u→375px, boîte 9.56u×1.50u, courbure 20 → lift=90px
+//   Slogan    : Caveat Brush 2.00u→600px, boîte 11.02u×2.18u, courbure 20 → lift=131px
+//   fill nom  = s (secondaire)   fill slogan = p (primaire)
 function backSVG({ name, slogan, p, s }) {
-  const W = 3600;
-  const USABLE = 3100; // largeur utile (marge 250 de chaque côté)
+  const W = 3600, H = 2400, CX = W / 2;
 
-  // ── Nom du pays (arc) ────────────────────────────────────────────────────
-  // Aladin, ratio caractère ≈ 0.44
-  // Base 260px — tous les noms tiennent dans l'arc (aucun ne dépasse 22 chars)
-  const nameSize = adaptFontSize(name, USABLE, 260, 0.44);
+  // ── Nom du pays ──────────────────────────────────────────────────────────
+  // charRatio Aladin mesuré : 2868/(22×375) = 0.347
+  const nomSz     = adaptFontSize(name, 2868, 375, 0.347);
+  const nomStroke = Math.round(nomSz * 0.048);
 
-  // Arc SVG : courbe douce vers le haut (+80px au centre)
-  // Endpoints y=620, contrôle y=540  → arc "sourire"
-  const arcY = 620;
-  const arcPeak = 540;
+  // Arc nom : centre x=1800, largeur 9.56u=2868px, lift=90px
+  const NOM_XL   = CX - 1434;   // 366
+  const NOM_XR   = CX + 1434;   // 3234
+  const NOM_BASE = 1050;         // y baseline aux extrémités
+  const NOM_PEAK = NOM_BASE - 90; // y au sommet (lift=90)
 
-  // ── Slogan (droit) ────────────────────────────────────────────────────────
-  // Caveat Brush, ratio ≈ 0.48
-  const MAX_SLOGAN  = 520;
-  const MIN_SINGLE  = 240; // < 240px → 2 lignes
-  const rtl = isRTL(slogan) ? 'direction="rtl" unicode-bidi="embed"' : '';
-
-  let sloganLines = [slogan];
-  let sloganSize  = adaptFontSize(slogan, USABLE, MAX_SLOGAN, 0.48);
-  if (sloganSize < MIN_SINGLE) {
-    sloganLines = splitAtBestBreak(slogan);
-    sloganSize  = adaptFontSize(sloganLines[0], USABLE, MAX_SLOGAN, 0.48);
+  // ── Slogan ───────────────────────────────────────────────────────────────
+  // charRatio Caveat Brush mesuré : 3306/(13×600) = 0.424
+  let slogSz    = adaptFontSize(slogan, 3306, 600, 0.424);
+  let slogLines = [slogan];
+  if (slogSz < 280) {
+    // Slogan trop long → 2 lignes
+    slogLines = splitAtBestBreak(slogan);
+    slogSz    = adaptFontSize(slogLines[0], 3306, 600, 0.424);
   }
+  const slogStroke = Math.round(slogSz * 0.040);
 
-  // Baseline slogan : juste sous la fin de l'arc + gap confortable
-  const GAP       = 110;
-  const slogan1Y  = arcY + GAP + sloganSize;
-  const slogan2Y  = slogan1Y + Math.round(sloganSize * 1.15);
+  // Arc slogan : largeur 11.02u=3306px, lift=131px
+  const SLG_XL = CX - 1653;   // 147
+  const SLG_XR = CX + 1653;   // 3453
 
-  let sloganSVG;
-  if (sloganLines.length === 1) {
-    sloganSVG = `
-  <text x="${W / 2}" y="${slogan1Y}"
-        font-family="'Caveat Brush', cursive" font-size="${sloganSize}"
-        fill="${s}" text-anchor="middle"
-        paint-order="stroke" stroke="${p}" stroke-width="22" ${rtl}>
-    ${escXML(slogan)}
-  </text>`;
-  } else {
-    sloganSVG = `
-  <text x="${W / 2}" y="${slogan1Y}"
-        font-family="'Caveat Brush', cursive" font-size="${sloganSize}"
-        fill="${s}" text-anchor="middle"
-        paint-order="stroke" stroke="${p}" stroke-width="20" ${rtl}>
-    ${escXML(sloganLines[0])}
-  </text>
-  <text x="${W / 2}" y="${slogan2Y}"
-        font-family="'Caveat Brush', cursive" font-size="${sloganSize}"
-        fill="${s}" text-anchor="middle"
-        paint-order="stroke" stroke="${p}" stroke-width="20" ${rtl}>
-    ${escXML(sloganLines[1])}
-  </text>`;
-  }
+  // Position Y du slogan : sous le nom + gap de 100px
+  // Contenu nom : sommet ≈ NOM_PEAK − nomSz×0.73
+  // Fond nom    : NOM_BASE + nomSz×0.12 (descenders)
+  const nomBottom  = NOM_BASE + Math.round(nomSz * 0.12);
+  const SLG_BASE   = nomBottom + 100 + 131 + Math.round(slogSz * 0.73);
+  const SLG_PEAK   = SLG_BASE - 131;
+  const SLG2_BASE  = SLG_BASE + Math.round(slogSz * 1.15);
+  const SLG2_PEAK  = SLG2_BASE - 131;
+
+  const rtl = isRTL(slogan) ? ' direction="rtl"' : '';
+
+  // Construire les blocs textPath pour 1 ou 2 lignes
+  const sloganBlocks = slogLines.map((line, i) => {
+    const base = i === 0 ? SLG_BASE : SLG2_BASE;
+    const peak = i === 0 ? SLG_PEAK : SLG2_PEAK;
+    const id   = `arcSlg${i}`;
+    return { line, base, peak, id };
+  });
 
   return `<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg"
-     xmlns:xlink="http://www.w3.org/1999/xlink"
-     width="${W}" height="4800" viewBox="0 0 ${W} 4800">
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+     width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
   <defs>
-    <style>
-      @import url('https://fonts.googleapis.com/css2?family=Aladin&amp;family=Caveat+Brush&amp;display=swap');
-    </style>
-    <!-- Arc pour le nom du pays : courbe douce vers le haut -->
-    <path id="nameArc"
-          d="M 250,${arcY} Q 1800,${arcPeak} 3350,${arcY}"/>
+    <style>@import url('https://fonts.googleapis.com/css2?family=Aladin&amp;family=Caveat+Brush&amp;display=swap');</style>
+    <!-- Arc nom : 9.56u large, courbure 20, lift=90px -->
+    <path id="arcNom" d="M ${NOM_XL},${NOM_BASE} Q ${CX},${NOM_PEAK} ${NOM_XR},${NOM_BASE}"/>
+    <!-- Arc(s) slogan : 11.02u large, courbure 20, lift=131px -->
+    ${sloganBlocks.map(({ id, base, peak }) =>
+      `<path id="${id}" d="M ${SLG_XL},${base} Q ${CX},${peak} ${SLG_XR},${base}"/>`
+    ).join('\n    ')}
   </defs>
 
-  <!-- Nom du pays — arc, fill=primaire, stroke=secondaire (conforme BA) -->
-  <text font-family="'Aladin', serif" font-size="${nameSize}"
-        fill="${p}" paint-order="stroke" stroke="${s}" stroke-width="16">
-    <textPath href="#nameArc" xlink:href="#nameArc"
-              startOffset="50%" text-anchor="middle">
-      ${escXML(name)}
-    </textPath>
+  <!-- NOM DU PAYS : Aladin, fill=s, stroke=p, courbure 20 -->
+  <text font-family="'Aladin', serif" font-size="${nomSz}"
+        fill="${s}" paint-order="stroke" stroke="${p}" stroke-width="${nomStroke}"
+        text-anchor="middle">
+    <textPath href="#arcNom" xlink:href="#arcNom" startOffset="50%">${escXML(name)}</textPath>
   </text>
 
-  <!-- Slogan — droit, fill=secondaire, stroke=primaire (conforme BA) -->
-  ${sloganSVG}
+  <!-- SLOGAN : Caveat Brush, fill=p, stroke=s, courbure 20 -->
+  ${sloganBlocks.map(({ line, id }) => `
+  <text font-family="'Caveat Brush', cursive" font-size="${slogSz}"
+        fill="${p}" paint-order="stroke" stroke="${s}" stroke-width="${slogStroke}"
+        text-anchor="middle"${rtl}>
+    <textPath href="#${id}" xlink:href="#${id}" startOffset="50%">${escXML(line)}</textPath>
+  </text>`).join('')}
 </svg>`;
 }
 
 // ── SVG : MANCHE DROITE — WORLD / 2026 / CUP ─────────────────────────────
-// 510 × 630 px (1.7" × 2.1" @ 300 dpi)
-// Conforme BA : WORLD+CUP fill=secondaire, 2026 fill=primaire, pas de bandes
+// Canvas 600×750 px (2u × 2.5u @ 300 dpi)
+//
+// Valeurs mesurées sur BA :
+//   WORLD/CUP : Open Sans Bold 0.30u→90px, 1.14u×0.25u, courbure 2 (lift≈1.5px ≈ plat)
+//   2026      : Dela Gothic One 0.43u→129px, 1.67u×0.75u, courbure 46 → lift=103px
+//   fill WORLD/CUP = s   fill 2026 = p
 function sleeveRightSVG({ p, s }) {
+  // WORLD : y baseline=208, quasi-plat (lift=1.5px)
+  // x entre 129 et 471 (1.14u×300 = 342px centré sur 300)
+  const WL = 300 - 171, WR = 300 + 171;  // 129, 471
+  const WY = 208;
+
+  // 2026  : arc base=483, peak=380 (lift=103px)
+  // x entre 49.5 et 550.5 (1.67u×300 = 501px centré sur 300)
+  const AL = 300 - 250.5, AR = 300 + 250.5;  // 49.5, 550.5
+  const A_BASE = 483, A_PEAK = 380;
+
+  // CUP   : y baseline=594, quasi-plat (idem WORLD)
+  const CY = 594;
+
   return `<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="510" height="630" viewBox="0 0 510 630">
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+     width="600" height="750" viewBox="0 0 600 750">
   <defs>
-    <style>
-      @import url('https://fonts.googleapis.com/css2?family=Aladin&amp;family=Caveat+Brush&amp;display=swap');
-    </style>
+    <style>@import url('https://fonts.googleapis.com/css2?family=Open+Sans:wght@700&amp;family=Dela+Gothic+One&amp;display=swap');</style>
+    <!-- WORLD/CUP : courbure 2, lift=1.5px → quasi-plat -->
+    <path id="arcW" d="M ${WL},${WY}   Q 300,${WY - 1.5} ${WR},${WY}"/>
+    <!-- 2026 : courbure 46, lift=103px -->
+    <path id="arc2026" d="M ${AL},${A_BASE} Q 300,${A_PEAK} ${AR},${A_BASE}"/>
+    <path id="arcC" d="M ${WL},${CY}   Q 300,${CY - 1.5} ${WR},${CY}"/>
   </defs>
 
-  <!-- WORLD — petit, fill=secondaire -->
-  <text x="255" y="118"
-        font-family="'Aladin','serif'" font-size="88"
-        fill="${s}" text-anchor="middle"
-        paint-order="stroke" stroke="${p}" stroke-width="6">WORLD</text>
+  <!-- WORLD : Open Sans Bold 90px, courbure 2, fill=s -->
+  <text font-family="'Open Sans', sans-serif" font-weight="700" font-size="90"
+        fill="${s}" paint-order="stroke" stroke="${p}" stroke-width="5"
+        text-anchor="middle">
+    <textPath href="#arcW" xlink:href="#arcW" startOffset="50%">WORLD</textPath>
+  </text>
 
-  <!-- 2026 — grand, fill=primaire -->
-  <text x="255" y="340"
-        font-family="'Caveat Brush','cursive'" font-size="205"
-        fill="${p}" text-anchor="middle"
-        paint-order="stroke" stroke="${s}" stroke-width="9">2026</text>
+  <!-- 2026 : Dela Gothic One 129px, courbure 46, fill=p -->
+  <text font-family="'Dela Gothic One', cursive" font-size="129"
+        fill="${p}" paint-order="stroke" stroke="${s}" stroke-width="7"
+        text-anchor="middle">
+    <textPath href="#arc2026" xlink:href="#arc2026" startOffset="50%">2026</textPath>
+  </text>
 
-  <!-- CUP — petit, fill=secondaire -->
-  <text x="255" y="480"
-        font-family="'Aladin','serif'" font-size="88"
-        fill="${s}" text-anchor="middle"
-        paint-order="stroke" stroke="${p}" stroke-width="6">CUP</text>
+  <!-- CUP : Open Sans Bold 90px, courbure 2, fill=s -->
+  <text font-family="'Open Sans', sans-serif" font-weight="700" font-size="90"
+        fill="${s}" paint-order="stroke" stroke="${p}" stroke-width="5"
+        text-anchor="middle">
+    <textPath href="#arcC" xlink:href="#arcC" startOffset="50%">CUP</textPath>
+  </text>
 </svg>`;
 }
 
 // ── SVG : MANCHE GAUCHE — Ballon de volleyball ────────────────────────────
-// 510 × 630 px (1.7" × 2.1" @ 300 dpi)
-// Conforme BA : cercle + 3 coutures courbes, double trait (s=ext, p=int)
+// Canvas 510×630 px
+// Cercle r=180 + 3 coutures bezier double-trait (s extérieur / p intérieur)
 // Fond blanc, pas de texte
 function sleeveLeftSVG({ p, s }) {
-  // Ballon centré : cx=255, cy=285, r=180
-  // Les extrémités des coutures sont sur le cercle (distance r du centre)
   const cx = 255, cy = 285, r = 180;
+  const SO = 14, SI = 7;  // stroke outer / inner
 
-  // Points cardinaux sur le cercle :
-  // Gauche   : (75, 285)      θ=180°
-  // Droite   : (435, 285)     θ=0°
-  // Haut-gauche: ≈(165, 129)  θ=≈-130°  (cx+r·cos(130°), cy+r·sin(-40°))
-  // Bas-gauche : ≈(165, 441)  θ=≈130°
-  // Haut-droit : ≈(345, 129)  θ=≈-50°
-  // Bas-droit  : ≈(345, 441)  θ=≈50°
+  const seam = (d) =>
+    `<path d="${d}" fill="none" stroke="${s}" stroke-width="${SO}" stroke-linecap="round"/>
+    <path d="${d}" fill="none" stroke="${p}" stroke-width="${SI}" stroke-linecap="round"/>`;
 
-  // Trait épais = secondaire (extérieur), trait fin = primaire (intérieur)
-  const SW_OUTER = 14;
-  const SW_INNER = 7;
-
-  const seam = (d) => `
-    <path d="${d}" fill="none" stroke="${s}" stroke-width="${SW_OUTER}" stroke-linecap="round"/>
-    <path d="${d}" fill="none" stroke="${p}" stroke-width="${SW_INNER}" stroke-linecap="round"/>`;
-
-  // Couture 1 : horizontale ondulée (gauche → droite, S-courbe en passant par le centre)
-  const seam1 = seam(`M 75,285 C 135,210 180,225 255,285 C 330,345 375,360 435,285`);
-
-  // Couture 2 : diagonale gauche (haut-gauche → bas-gauche, passe par la gauche du centre)
-  const seam2 = seam(`M 165,129 C 95,170 77,225 76,285 C 77,345 95,400 165,441`);
-
-  // Couture 3 : diagonale droite (haut-droit → bas-droit, passe par la droite du centre)
-  const seam3 = seam(`M 345,129 C 415,170 433,225 434,285 C 433,345 415,400 345,441`);
+  // Couture 1 : S-curve horizontale
+  const s1 = seam(`M 75,285 C 135,210 180,225 255,285 C 330,345 375,360 435,285`);
+  // Couture 2 : arc gauche
+  const s2 = seam(`M 165,129 C 95,170 77,225 76,285 C 77,345 95,400 165,441`);
+  // Couture 3 : arc droit
+  const s3 = seam(`M 345,129 C 415,170 433,225 434,285 C 433,345 415,400 345,441`);
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="510" height="630" viewBox="0 0 510 630">
   <defs>
-    <!-- Clip : les coutures restent à l'intérieur du ballon -->
-    <clipPath id="ballClip">
-      <circle cx="${cx}" cy="${cy}" r="${r}"/>
-    </clipPath>
+    <clipPath id="ballClip"><circle cx="${cx}" cy="${cy}" r="${r}"/></clipPath>
   </defs>
-
-  <!-- Surface blanche du ballon -->
   <circle cx="${cx}" cy="${cy}" r="${r}" fill="white"/>
-
-  <!-- Coutures intérieures (clippées) -->
   <g clip-path="url(#ballClip)">
-    ${seam1}
-    ${seam2}
-    ${seam3}
+    ${s1}
+    ${s2}
+    ${s3}
   </g>
-
-  <!-- Contour du ballon — double trait (s ext, p int) -->
   <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${s}" stroke-width="16"/>
   <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${p}" stroke-width="8"/>
 </svg>`;
@@ -327,6 +321,7 @@ async function uploadSVG(svgContent, publicId) {
   const data = await resp.json();
   if (!resp.ok) throw new Error(JSON.stringify(data));
 
+  // Livraison en PNG haute qualité
   return data.secure_url.replace(/\/upload\//, '/upload/f_png,q_100/');
 }
 
@@ -347,7 +342,7 @@ async function main() {
   for (const country of toProcess) {
     const already = existing[country.iso] || {};
     if (SKIP_EXISTING && already.back && already.sleeveRight && already.sleeveLeft) {
-      console.log(`  ${country.iso} — skipped`);
+      console.log(`  ${country.iso} — skipped (déjà généré)`);
       continue;
     }
 
@@ -361,7 +356,7 @@ async function main() {
       results[country.iso] = { back: backUrl, sleeveRight: sleeveRightUrl, sleeveLeft: sleeveLeftUrl };
       console.log('✅');
     } catch (err) {
-      console.log(`❌ ${err.message.slice(0, 120)}`);
+      console.log(`❌ ${err.message.slice(0, 150)}`);
     }
     await new Promise(r => setTimeout(r, 350));
   }
